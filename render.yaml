@@ -19,22 +19,18 @@ services:
   - type: web
     name: deck-pro-server
     runtime: node
-    plan: starter
+    plan: free
     rootDir: server
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
     numInstances: 1
     autoDeployTrigger: commit
-    disk:
-      name: deck-pro-data
-      mountPath: /var/data
-      sizeGB: 10
     envVars:
       - key: PORT
         value: 10000
       - key: DATA_DIR
-        value: /var/data
+        value: /tmp/deck-pro-data
       - key: ODDSPAPI_API_KEY
         sync: false
       - key: OWNER_CODE_SALT
@@ -44,6 +40,6 @@ services:
       - key: OWNER_TOKEN_SECRET
         generateValue: true
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://deck-pro-web.onrender.com
       - key: BOOKMAKERS
         value: sportybet,betmomo,premierbet,betpawa.cm,1xbet,1xwin,afropari
