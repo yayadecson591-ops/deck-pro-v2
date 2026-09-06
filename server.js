@@ -1,0 +1,31 @@
+import express from 'express';
+import cors from 'cors';
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+
+const app=express();
+const PORT=Number(process.env.PORT||10000);
+const DATA_DIR=process.env.DATA_DIR||'./data';
+const ORIGINS=(process.env.ALLOWED_ORIGINS||'*').split(',').map(x=>x.trim()).filter(Boolean);
+const API_KEY=process.env.ODDSPAPI_API_KEY||'';
+const OWNER_SALT=process.env.OWNER_CODE_SALT||'';
+const OWNER_HASH=process.env.OWNER_CODE_HASH||'';
+const OWNER_SECRET=process.env.OWNER_TOKEN_SECRET||'';
+const BOOKMAKERS=(process.env.BOOKMAKERS||'sportybet,betmomo,premierbet,betpawa.cm,1xbet,1xwin,afropari').split(',').map(x=>x.trim()).filter(Boolean);
+fs.mkdirSync(DATA_DIR,{recursive:true});
+app.disable('x-powered-by');
+app.use(cors({origin:(o,cb)=>!o||ORIGINS.includes('*')||ORIGINS.includes(o)?cb(null,true):cb(new Error('Origin non autorisée'))}));
+app.use(express.json({limit:'256kb'}));
+app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Cache-Control','no-store');next()});
+const hash=(code,salt=OWNER_SALT)=>crypto.createHash('sha256').update(String(salt)+String(code)).digest('hex');
+const token=(device='')=>{const p=Buffer.from(JSON.stringify({role:'owner',exp:Date.now()+2592000000,did:device})).toString('base64url');return p+'.'+crypto.createHmac('sha256',OWNER_SECRET).update(p).digest('base64url')};
+function auth(req,res,next){const t=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');try{if(!OWNER_SECRET||!t)throw 0;const [p,s]=t.split('.');const e=crypto.createHmac('sha256',OWNER_SECRET).update(p).digest('base64url');const x=JSON.parse(Buffer.from(p,'base64url').toString());if(s!==e||x.role!=='owner'||Number(x.exp)<=Date.now())throw 0;req.owner=x;next()}catch{return res.status(401).json({ok:false,error:'Activation propriétaire requise.'})}}
+app.get('/health',(req,res)=>res.json({ok:true,service:'deck-pro-server',version:'V119',status:'online',uptimeSec:Math.floor(process.uptime())}));
+app.get('/api/system/readiness',(req,res)=>{const writable=(()=>{try{const f=path.join(DATA_DIR,'.probe');fs.writeFileSync(f,'ok');fs.unlinkSync(f);return true}catch{return false}})();const checks={oddsPapi:!!API_KEY,ownerAuth:!!OWNER_SALT&&!!OWNER_HASH&&!!OWNER_SECRET,dataWritable:writable,nodeVersion:Number(process.versions.node.split('.')[0])>=20};const ready=checks.oddsPapi&&checks.ownerAuth&&checks.dataWritable&&checks.nodeVersion;res.status(ready?200:503).json({ok:ready,ready,checks,bookmakers:BOOKMAKERS})});
+app.post('/api/activate',(req,res)=>{const code=String(req.body?.code||'').trim().toUpperCase();const deviceId=String(req.body?.deviceId||'').trim();if(!OWNER_SALT||!OWNER_HASH||!OWNER_SECRET)return res.status(503).json({ok:false,error:'Activation propriétaire non configurée.'});if(!code||hash(code)!==OWNER_HASH)return res.status(401).json({ok:false,error:'Code propriétaire incorrect.'});if(!deviceId)return res.status(400).json({ok:false,error:'Identifiant appareil requis.'});res.json({ok:true,role:'owner',deviceId,token:token(deviceId)})});
+app.get('/api/activate/verify',auth,(req,res)=>res.json({ok:true,role:'owner'}));
+app.get('/api/system/config-check',auth,(req,res)=>res.json({ok:true,checks:{oddsPapi:!!API_KEY,ownerAuth:!!OWNER_SALT&&!!OWNER_HASH&&!!OWNER_SECRET,origins:ORIGINS.length>0,bookmakers:BOOKMAKERS.length>0},version:'V119'}));
+app.post('/api/arbitrage/stake-plan-constrained',auth,(req,res)=>{const body=req.body||{};const total=Number(body.totalStake??body.stake);const opp=body.opportunity||body;if(!Number.isFinite(total)||total<=0)return res.status(400).json({ok:false,error:'Mise totale invalide.'});const legs=Array.isArray(opp.legs)?opp.legs:[];const n=legs.length;if(!n)return res.status(400).json({ok:false,error:'Aucune branche.'});const equal=total/n;const stakes=legs.map(()=>equal);res.json({ok:true,version:'V119',plan:{ok:true,totalStake:total,requestedStake:total,profit:0,yieldPct:0,legs:legs.map((l,i)=>({bookmaker:String(l.slug||l.bookmaker||''),price:Number(l.price||l.odds),stake:stakes[i],capital:body.capitalByBookmaker?.[l.slug||l.bookmaker]??null,limit:l.limit??null,outcome:l.outcome||''})),policy:'mise totale configurable par opération, indépendante du nombre de bookmakers; aucune mise réelle n’est placée'}})});
+app.get('/api/bookmakers/coverage',auth,(req,res)=>res.json({ok:true,configured:BOOKMAKERS.length,rows:BOOKMAKERS.map(slug=>({configuredSlug:slug,found:false,status:'LIVE_DATA_REQUIRED'})),policy:'Aucune disponibilité bookmaker n’est inventée.'}));
+app.listen(PORT,'0.0.0.0',()=>console.log(`Deck Pro V119 server listening on :${PORT}`));
