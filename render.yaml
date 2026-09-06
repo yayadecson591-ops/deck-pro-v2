@@ -2,47 +2,6 @@ services:
   - type: web
     name: deck-pro-web
     runtime: static
-    buildCommand: echo "Deck Pro V119 static frontend"
-    staticPublishPath: ./web
+    buildCommand: echo "Deck Pro V119"
+    staticPublishPath: .
     autoDeployTrigger: commit
-    headers:
-      - path: /*
-        headers:
-          - key: X-Content-Type-Options
-            value: nosniff
-          - key: Referrer-Policy
-            value: strict-origin-when-cross-origin
-          - key: X-Frame-Options
-            value: SAMEORIGIN
-
-  - type: web
-    name: deck-pro-server
-    runtime: node
-    plan: starter
-    rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
-    healthCheckPath: /health
-    numInstances: 1
-    autoDeployTrigger: commit
-    disk:
-      name: deck-pro-data
-      mountPath: /var/data
-      sizeGB: 10
-    envVars:
-      - key: PORT
-        value: 10000
-      - key: DATA_DIR
-        value: /var/data
-      - key: ODDSPAPI_API_KEY
-        sync: false
-      - key: OWNER_CODE_SALT
-        generateValue: true
-      - key: OWNER_CODE_HASH
-        sync: false
-      - key: OWNER_TOKEN_SECRET
-        generateValue: true
-      - key: ALLOWED_ORIGINS
-        sync: false
-      - key: BOOKMAKERS
-        value: sportybet,betmomo,premierbet,betpawa.cm,1xbet,1xwin,afropari
