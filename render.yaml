@@ -1,3 +1,9 @@
+databases:
+  - name: deck-pro-db
+    plan: free
+    region: frankfurt
+    version: 18
+
 services:
   - type: web
     name: deck-pro-web
@@ -20,6 +26,7 @@ services:
     name: deck-pro-server
     runtime: node
     plan: free
+    region: frankfurt
     rootDir: server
     buildCommand: npm install
     startCommand: npm start
@@ -39,6 +46,12 @@ services:
         sync: false
       - key: OWNER_TOKEN_SECRET
         generateValue: true
+      - key: DATABASE_SSL
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: deck-pro-db
+          property: connectionString
       - key: ALLOWED_ORIGINS
         value: https://deck-pro-web.onrender.com
       - key: BOOKMAKERS
