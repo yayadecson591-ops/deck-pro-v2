@@ -3,6 +3,7 @@ import cors from 'cors';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import accountRouter from './account-api.js';
 import { executionCapabilities, validateExecutionPair, validateAuthorizedOrder, placeAuthorizedBet } from './execution.js';
 import { relayRole, relayExecutionAllowed, relayStatus } from './relay.js';
 
@@ -22,6 +23,7 @@ app.disable('x-powered-by');
 app.use(cors({origin:(o,cb)=>!o||ORIGINS.includes('*')||ORIGINS.includes(o)?cb(null,true):cb(new Error('Origin non autorisée'))}));
 app.use(express.json({limit:'256kb'}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Cache-Control','no-store');res.setHeader('X-Deck-Relay-Role',relayRole());next()});
+app.use(accountRouter);
 const effectiveSalt=OWNER_SALT||'deck-pro-owner-v1';
 const effectiveHash=OWNER_HASH||(OWNER_CODE?crypto.createHash('sha256').update(effectiveSalt+OWNER_CODE).digest('hex'):'');
 const effectiveSecret=OWNER_SECRET||(effectiveHash?crypto.createHash('sha256').update('deck-pro-token-v1'+effectiveHash).digest('hex'):'');
