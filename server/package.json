@@ -1,1 +1,1 @@
-{"name":"deck-pro-server","version":"1.0.0","type":"module","private":true,"scripts":{"start":"node server.js"},"dependencies":{"cors":"^2.8.5","express":"^4.21.2","pg":"^8.16.3","web-push":"^3.6.7","ws":"^8.18.0"}}
+{"name":"deck-pro-server","version":"1.0.0","type":"module","private":true,"scripts":{"start":"node db-bootstrap.js"},"dependencies":{"cors":"^2.8.5","express":"^4.21.2","pg":"^8.16.3","web-push":"^3.6.7","ws":"^8.18.0"}}
