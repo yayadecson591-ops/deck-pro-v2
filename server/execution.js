@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { executionStrategy, executionStrategyMatrix, supportedChannels, isExecutionChannelVerified } from './execution-strategies.js';
 
 const EXECUTION_TIMEOUT_MS=Number(process.env.EXECUTION_TIMEOUT_MS||8000);
 const configured=(process.env.BOOKMAKER_EXECUTION_BOOKS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
@@ -26,10 +27,14 @@ export function executionCapabilities(){
     configured:Boolean(a.baseUrl),
     mode:a.mode,
     userTokenConfigured:tokenEnabled(a.slug),
+    strategy:executionStrategy(a.slug),
+    verifiedFallbackChannels:supportedChannels().filter(channel=>isExecutionChannelVerified(a.slug,channel)),
     executable:Boolean(enabled(a.slug)&&a.baseUrl&&tokenEnabled(a.slug)),
     status:enabled(a.slug)&&a.baseUrl&&tokenEnabled(a.slug)?'TOKEN_CHANNEL_CONFIGURED':'TOKEN_CHANNEL_NOT_CONFIGURED'
   }));
 }
+
+export function executionStrategies(){return executionStrategyMatrix()}
 function safeId(){return crypto.randomUUID()}
 function timeoutSignal(){return AbortSignal.timeout(EXECUTION_TIMEOUT_MS)}
 function headers(adapter,userToken){return {Accept:'application/json','Content-Type':'application/json','Authorization':`Bearer ${String(userToken||'')}`}}
