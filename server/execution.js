@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { executionStrategy, executionStrategyMatrix, supportedChannels, isExecutionChannelVerified } from './execution-strategies.js';
+import { executionStrategy, executionStrategyMatrix, supportedChannels, isExecutionChannelVerified, executionResearchStatus } from './execution-strategies.js';
 
 const EXECUTION_TIMEOUT_MS=Number(process.env.EXECUTION_TIMEOUT_MS||8000);
 const configured=(process.env.BOOKMAKER_EXECUTION_BOOKS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
@@ -8,63 +8,67 @@ const tokenBooks=(process.env.BOOKMAKER_TOKEN_BOOKS||'').split(',').map(x=>x.tri
 function env(name){return String(process.env[name]||'').trim()}
 function enabled(slug){return configured.includes(slug)}
 function tokenEnabled(slug){return tokenBooks.includes(slug)}
+function verifiedRoute(slug, channel){return isExecutionChannelVerified(slug,channel)}
 
 const adapters={
-  sportybet:{slug:'sportybet',name:'SportyBet',mode:'user_token',baseUrl:env('SPORTYBET_API_BASE_URL')},
-  betmomo:{slug:'betmomo',name:'BetMomo',mode:'user_token',baseUrl:env('BETMOMO_API_BASE_URL')},
-  premierbet:{slug:'premierbet',name:'Premier Bet',mode:'user_token',baseUrl:env('PREMIERBET_API_BASE_URL')},
-  'betpawa.cm':{slug:'betpawa.cm',name:'betPawa Cameroon',mode:'user_token',baseUrl:env('BETPAWA_API_BASE_URL')},
-  '1xbet':{slug:'1xbet',name:'1xBet',mode:'user_token',baseUrl:env('ONE_XBET_API_BASE_URL')},
-  '1xwin':{slug:'1xwin',name:'1xWin',mode:'user_token',baseUrl:env('ONE_XWIN_API_BASE_URL')},
-  afropari:{slug:'afropari',name:'Afropari',mode:'user_token',baseUrl:env('AFROPARI_API_BASE_URL')}
+  sportybet:{slug:'sportybet',name:'SportyBet',channels:['official_api','partner_sdk','user_token']},
+  betmomo:{slug:'betmomo',name:'BetMomo',channels:['official_api','partner_sdk','user_token']},
+  premierbet:{slug:'premierbet',name:'Premier Bet',channels:['partner_sdk','deeplink_coupon','official_api']},
+  'betpawa.cm':{slug:'betpawa.cm',name:'betPawa Cameroon',channels:['partner_sdk','authorized_gateway','official_api']},
+  '1xbet':{slug:'1xbet',name:'1xBet',channels:['partner_sdk','authorized_gateway','official_api','user_token']},
+  '1xwin':{slug:'1xwin',name:'1xWin',channels:['partner_sdk','authorized_gateway','official_api','user_token']},
+  afropari:{slug:'afropari',name:'Afropari',channels:['partner_sdk','authorized_gateway','official_api']}
 };
 
 export function executionCapabilities(){
-  return Object.values(adapters).map(a=>({
-    bookmaker:a.slug,
-    name:a.name,
-    enabled:enabled(a.slug),
-    configured:Boolean(a.baseUrl),
-    mode:a.mode,
-    userTokenConfigured:tokenEnabled(a.slug),
-    strategy:executionStrategy(a.slug),
-    verifiedFallbackChannels:supportedChannels().filter(channel=>isExecutionChannelVerified(a.slug,channel)),
-    executable:Boolean(enabled(a.slug)&&a.baseUrl&&tokenEnabled(a.slug)),
-    status:enabled(a.slug)&&a.baseUrl&&tokenEnabled(a.slug)?'TOKEN_CHANNEL_CONFIGURED':'TOKEN_CHANNEL_NOT_CONFIGURED'
-  }));
+  return Object.values(adapters).map(a=>{
+    const verified=supportedChannels().filter(channel=>verifiedRoute(a.slug,channel));
+    return {
+      bookmaker:a.slug,
+      name:a.name,
+      enabled:enabled(a.slug),
+      configuredChannels:a.channels.filter(channel=>Boolean(env(`${a.slug.toUpperCase().replace(/[^A-Z0-9]/g,'_')}_${channel.toUpperCase()}_URL`))),
+      userTokenConfigured:tokenEnabled(a.slug),
+      strategy:executionStrategy(a.slug),
+      verifiedFallbackChannels:verified,
+      executable:Boolean(enabled(a.slug)&&verified.length),
+      status:verified.length?'VERIFIED_ROUTE_AVAILABLE':'RESEARCH_OR_AUTHORIZATION_REQUIRED'
+    };
+  });
 }
 
 export function executionStrategies(){return executionStrategyMatrix()}
+export function executionResearch(){return executionResearchStatus()}
 function safeId(){return crypto.randomUUID()}
-function timeoutSignal(){return AbortSignal.timeout(EXECUTION_TIMEOUT_MS)}
-function headers(adapter,userToken){return {Accept:'application/json','Content-Type':'application/json','Authorization':`Bearer ${String(userToken||'')}`}}
 function tokenFingerprint(value){return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0,16)}
 
-export function validateAuthorizedOrder({bookmaker,selection,stake,odds,expectedOdds,availableBalance,maxStake,userToken}){
+export function validateAuthorizedOrder({bookmaker,selection,stake,odds,expectedOdds,availableBalance,maxStake,userToken,channel}){
   const slug=String(bookmaker||'').trim().toLowerCase(); const a=adapters[slug];
-  if(!a||!enabled(slug)||!a.baseUrl||!tokenEnabled(slug))return {ok:false,code:'BOOKMAKER_TOKEN_CHANNEL_NOT_CONFIGURED'};
-  if(!userToken)return {ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};
+  if(!a)return {ok:false,code:'BOOKMAKER_UNSUPPORTED'};
+  const requestedChannel=String(channel||executionStrategy(slug)?.preferred||'').trim();
+  if(!requestedChannel||!verifiedRoute(slug,requestedChannel))return {ok:false,code:'EXECUTION_ROUTE_NOT_VERIFIED',bookmaker:slug,requestedChannel:requestedChannel||null};
+  if(requestedChannel==='user_token'&&!userToken)return {ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};
   if(!selection)return {ok:false,code:'SELECTION_REQUIRED'};
   const s=Number(stake); if(!Number.isFinite(s)||s<=0)return {ok:false,code:'INVALID_STAKE'};
   if(Number.isFinite(Number(maxStake))&&s>Number(maxStake))return {ok:false,code:'STAKE_LIMIT_EXCEEDED'};
   if(Number.isFinite(Number(availableBalance))&&s>Number(availableBalance))return {ok:false,code:'INSUFFICIENT_BALANCE'};
   if(Number.isFinite(Number(expectedOdds))&&Number.isFinite(Number(odds))&&Number(odds)<Number(expectedOdds))return {ok:false,code:'ODDS_MOVED_DOWN',expectedOdds:Number(expectedOdds),currentOdds:Number(odds)};
-  return {ok:true,bookmaker:slug,stake:s,odds:Number(odds),preflight:'PASSED',tokenFingerprint:tokenFingerprint(userToken)};
+  return {ok:true,bookmaker:slug,channel:requestedChannel,stake:s,odds:Number(odds),preflight:'PASSED',tokenFingerprint:userToken?tokenFingerprint(userToken):null};
 }
 
-export async function placeAuthorizedBet({bookmaker,selection,stake,idempotencyKey,userToken}){
-  const slug=String(bookmaker||'').trim().toLowerCase(); const a=adapters[slug];
+// Real placement is intentionally blocked until a bookmaker-specific, documented
+// and authorized execution contract is configured. This prevents the old generic
+// POST /bets placeholder from ever being mistaken for a real bookmaker API.
+export async function placeAuthorizedBet({bookmaker,selection,stake,idempotencyKey,userToken,channel}){
+  const slug=String(bookmaker||'').trim().toLowerCase();
+  const a=adapters[slug];
   if(!a)return {ok:false,code:'BOOKMAKER_UNSUPPORTED'};
-  if(!enabled(slug)||!a.baseUrl||!tokenEnabled(slug))return {ok:false,code:'BOOKMAKER_TOKEN_CHANNEL_NOT_CONFIGURED'};
-  if(!userToken)return {ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};
-  if(!selection||!Number.isFinite(Number(stake))||Number(stake)<=0)return {ok:false,code:'INVALID_ORDER'};
-  const requestId=idempotencyKey||safeId(); const url=`${a.baseUrl.replace(/\/$/,'')}/bets`;
-  try{
-    const r=await fetch(url,{method:'POST',headers:{...headers(a,userToken),'Idempotency-Key':requestId},body:JSON.stringify({selection,stake:Number(stake),requestId}),signal:timeoutSignal()});
-    const text=await r.text(); let data; try{data=JSON.parse(text)}catch{data={raw:text.slice(0,500)}}
-    if(!r.ok)return {ok:false,code:'BOOKMAKER_REJECTED',status:r.status,requestId,data};
-    return {ok:true,code:'BET_ACCEPTED',requestId,reference:data?.id||data?.betId||data?.reference||null,data};
-  }catch(e){return {ok:false,code:e?.name==='TimeoutError'?'BOOKMAKER_TIMEOUT':'BOOKMAKER_NETWORK_ERROR',requestId,message:e?.message||'Erreur de communication avec le bookmaker.'};}
+  const requestedChannel=String(channel||executionStrategy(slug)?.preferred||'').trim();
+  if(!requestedChannel||!verifiedRoute(slug,requestedChannel))return {ok:false,code:'EXECUTION_ROUTE_NOT_VERIFIED',bookmaker:slug,channel:requestedChannel||null};
+  if(requestedChannel==='user_token'&&!userToken)return {ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};
+  // No invented endpoint is called here. A verified adapter must be plugged in
+  // with the bookmaker's documented contract before real-money execution is enabled.
+  return {ok:false,code:'BOOKMAKER_ADAPTER_CONTRACT_REQUIRED',bookmaker:slug,channel:requestedChannel,requestId:idempotencyKey||safeId(),message:'Route identified but bookmaker-specific placement contract is not yet configured.'};
 }
 
 export function validateExecutionPair(legs){
