@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { executionStrategy, executionStrategyMatrix, supportedChannels, isExecutionChannelVerified, executionResearchStatus } from './execution-strategies.js';
+import { getExecutionAdapter, executionAdapterStatus, listExecutionAdapters } from './execution-adapters.js';
 
 const EXECUTION_TIMEOUT_MS=Number(process.env.EXECUTION_TIMEOUT_MS||8000);
 const configured=(process.env.BOOKMAKER_EXECUTION_BOOKS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
@@ -31,7 +32,8 @@ export function executionCapabilities(){
       userTokenConfigured:tokenEnabled(a.slug),
       strategy:executionStrategy(a.slug),
       verifiedFallbackChannels:verified,
-      executable:Boolean(enabled(a.slug)&&verified.length),
+      adapter:executionAdapterStatus(a.slug),
+      executable:Boolean(enabled(a.slug)&&verified.length&&getExecutionAdapter(a.slug)?.authorized&&getExecutionAdapter(a.slug)?.documented),
       status:verified.length?'VERIFIED_ROUTE_AVAILABLE':'RESEARCH_OR_AUTHORIZATION_REQUIRED'
     };
   });
@@ -39,6 +41,7 @@ export function executionCapabilities(){
 
 export function executionStrategies(){return executionStrategyMatrix()}
 export function executionResearch(){return executionResearchStatus()}
+export function executionAdapters(){return listExecutionAdapters()}
 function safeId(){return crypto.randomUUID()}
 function tokenFingerprint(value){return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0,16)}
 
@@ -56,9 +59,8 @@ export function validateAuthorizedOrder({bookmaker,selection,stake,odds,expected
   return {ok:true,bookmaker:slug,channel:requestedChannel,stake:s,odds:Number(odds),preflight:'PASSED',tokenFingerprint:userToken?tokenFingerprint(userToken):null};
 }
 
-// Real placement is intentionally blocked until a bookmaker-specific, documented
-// and authorized execution contract is configured. This prevents the old generic
-// POST /bets placeholder from ever being mistaken for a real bookmaker API.
+// Real placement is fail-closed. A bookmaker-specific adapter must be both
+// documented and explicitly authorized before any real-money request is sent.
 export async function placeAuthorizedBet({bookmaker,selection,stake,idempotencyKey,userToken,channel}){
   const slug=String(bookmaker||'').trim().toLowerCase();
   const a=adapters[slug];
@@ -66,9 +68,18 @@ export async function placeAuthorizedBet({bookmaker,selection,stake,idempotencyK
   const requestedChannel=String(channel||executionStrategy(slug)?.preferred||'').trim();
   if(!requestedChannel||!verifiedRoute(slug,requestedChannel))return {ok:false,code:'EXECUTION_ROUTE_NOT_VERIFIED',bookmaker:slug,channel:requestedChannel||null};
   if(requestedChannel==='user_token'&&!userToken)return {ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};
-  // No invented endpoint is called here. A verified adapter must be plugged in
-  // with the bookmaker's documented contract before real-money execution is enabled.
-  return {ok:false,code:'BOOKMAKER_ADAPTER_CONTRACT_REQUIRED',bookmaker:slug,channel:requestedChannel,requestId:idempotencyKey||safeId(),message:'Route identified but bookmaker-specific placement contract is not yet configured.'};
+  const adapter=getExecutionAdapter(slug);
+  if(!adapter?.authorized||!adapter?.documented){
+    return {ok:false,code:'BOOKMAKER_ADAPTER_CONTRACT_REQUIRED',bookmaker:slug,channel:requestedChannel,requestId:idempotencyKey||safeId(),message:'Route identified but bookmaker-specific placement contract is not yet configured.'};
+  }
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),EXECUTION_TIMEOUT_MS);
+  try{
+    const result=await adapter.placeBet({bookmaker:slug,selection,stake,idempotencyKey:idempotencyKey||safeId(),userToken,signal:controller.signal});
+    return {ok:true,bookmaker:slug,channel:requestedChannel,result};
+  }catch(error){
+    return {ok:false,code:'BOOKMAKER_EXECUTION_FAILED',bookmaker:slug,error:String(error?.message||error)};
+  }finally{clearTimeout(timeout)}
 }
 
 export function validateExecutionPair(legs){
