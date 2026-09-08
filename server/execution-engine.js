@@ -24,6 +24,7 @@ export function executionEngineStatus() {
     concurrentPlacement: true,
     partialFailureIsReported: true,
     lifecycleTracking: true,
+    reconciliationTracking: true,
     inFlight: [...transactions.values()].filter(x => x.status === 'running').length
   };
 }
@@ -35,8 +36,12 @@ export function getExecutionTransaction(idempotencyKey) {
   return transactions.get(key) || null;
 }
 
+function resultAccepted(result) {
+  return result?.ok === true && result?.result?.accepted === true;
+}
+
 function resultToLegState(result) {
-  if (result?.ok === true) return 'accepted';
+  if (resultAccepted(result)) return 'accepted';
   return 'failed';
 }
 
@@ -75,6 +80,7 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
     createdAt: now(),
     status: 'running',
     bookmakers: pair.bookmakers,
+    reconciliationRequired: false,
     legs: legs.map((leg, index) => ({
       index,
       bookmaker: pair.bookmakers[index],
@@ -88,8 +94,6 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
   transactions.set(key, transaction);
 
   try {
-    // Both legs start together. allSettled guarantees that one rejected promise
-    // cannot hide the outcome of the other leg.
     const settled = await Promise.allSettled(legs.map((leg, index) => placeAuthorizedBet({
       bookmaker: leg.bookmaker,
       selection: leg.selection,
@@ -111,7 +115,7 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
     }));
     transaction.completedAt = now();
 
-    const accepted = results.filter(x => x?.ok === true).length;
+    const accepted = results.filter(resultAccepted).length;
     const failed = results.length - accepted;
     if (failed === 0) {
       transaction.status = 'completed';
@@ -137,6 +141,7 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
     transaction.completedAt = now();
     transaction.status = 'failed';
     transaction.ok = false;
+    transaction.reconciliationRequired = transaction.legs.some(leg => leg.status === 'accepted');
     transaction.error = String(error?.message || error);
     return { ok: false, stage: 'placement', transaction };
   }
