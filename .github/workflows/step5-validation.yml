@@ -1,0 +1,22 @@
+name: Step 5 final validation
+
+on:
+  push:
+    branches: [ci-step5-final]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run test:security
+      - run: node --test step5-validation.test.js
