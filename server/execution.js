@@ -9,15 +9,30 @@ function env(name){return String(process.env[name]||'').trim()}
 function enabled(slug){return configured.includes(slug)}
 function tokenEnabled(slug){return tokenBooks.includes(slug)}
 function verifiedRoute(slug, channel){return isExecutionChannelVerified(slug,channel)}
-const adapters={
-  sportybet:{slug:'sportybet',name:'SportyBet',channels:['official_api','partner_sdk','user_token']},
-  betmomo:{slug:'betmomo',name:'BetMomo',channels:['official_api','partner_sdk','user_token']},
-  premierbet:{slug:'premierbet',name:'Premier Bet',channels:['partner_sdk','deeplink_coupon','official_api']},
-  'betpawa.cm':{slug:'betpawa.cm',name:'betPawa Cameroon',channels:['partner_sdk','authorized_gateway','official_api']},
-  '1xbet':{slug:'1xbet',name:'1xBet',channels:['partner_sdk','authorized_gateway','official_api','user_token']},
-  '1xwin':{slug:'1xwin',name:'1xWin',channels:['partner_sdk','authorized_gateway','official_api','user_token']},
-  afropari:{slug:'afropari',name:'Afropari',channels:['partner_sdk','authorized_gateway','official_api']}
-};
+
+const bookmakerDefinitions = [
+  ['sportybet','SportyBet',['official_api','partner_sdk','user_token']],
+  ['betmomo','BetMomo',['official_api','partner_sdk','user_token']],
+  ['premierbet','Premier Bet',['partner_sdk','deeplink_coupon','official_api']],
+  ['betpawa.cm','betPawa Cameroon',['partner_sdk','authorized_gateway','official_api']],
+  ['1xbet','1xBet',['partner_sdk','authorized_gateway','official_api','user_token']],
+  ['1xwin','1xWin',['partner_sdk','authorized_gateway','official_api','user_token']],
+  ['afropari','Afropari',['partner_sdk','authorized_gateway','official_api']],
+  ['betclic','Betclic Cameroon',['official_api','partner_sdk','user_token']],
+  ['yellowbet','Yellow Bet',['official_api','partner_sdk','user_token']],
+  ['22bet','22Bet',['official_api','partner_sdk','user_token']],
+  ['pmuc','PMUC',['official_api','partner_sdk','user_token']],
+  ['supergooal','Supergooal',['official_api','partner_sdk','user_token']],
+  ['betwinner','BetWinner',['official_api','partner_sdk','user_token']],
+  ['melbet','Melbet',['official_api','partner_sdk','user_token']],
+  ['bettomax','Bettomax',['official_api','partner_sdk','user_token']],
+  ['paripesa','PariPesa',['official_api','partner_sdk','user_token']],
+  ['onebet','OneBet',['official_api','partner_sdk','user_token']],
+  ['betsson','Betsson Africa',['official_api','partner_sdk','user_token']]
+];
+
+const adapters=Object.fromEntries(bookmakerDefinitions.map(([slug,name,channels])=>[slug,{slug,name,channels}]));
+
 export function executionCapabilities(){return Object.values(adapters).map(a=>{const verified=supportedChannels().filter(channel=>verifiedRoute(a.slug,channel));return{bookmaker:a.slug,name:a.name,enabled:enabled(a.slug),configuredChannels:a.channels.filter(channel=>Boolean(env(`${a.slug.toUpperCase().replace(/[^A-Z0-9]/g,'_')}_${channel.toUpperCase()}_URL`))),userTokenConfigured:tokenEnabled(a.slug),strategy:executionStrategy(a.slug),verifiedFallbackChannels:verified,adapter:executionAdapterStatus(a.slug),executable:Boolean(enabled(a.slug)&&verified.length&&getExecutionAdapter(a.slug)?.authorized&&getExecutionAdapter(a.slug)?.documented),status:verified.length?'VERIFIED_ROUTE_AVAILABLE':'RESEARCH_OR_AUTHORIZATION_REQUIRED'}})}
 export function executionStrategies(){return executionStrategyMatrix()}
 export function executionResearch(){return executionResearchStatus()}
