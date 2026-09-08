@@ -4,8 +4,6 @@
 
 const contracts = Object.create(null);
 
-const REQUIRED_RESULT_FIELDS = ['accepted'];
-
 function normalizeResult(result) {
   if (!result || typeof result !== 'object') throw new Error('INVALID_BOOKMAKER_RESULT');
   if (typeof result.accepted !== 'boolean') throw new Error('BOOKMAKER_RESULT_ACCEPTED_REQUIRED');
@@ -33,13 +31,18 @@ export function registerExecutionAdapter(slug, adapter) {
   });
 }
 
+export function unregisterExecutionAdapter(slug) {
+  const key = String(slug || '').trim().toLowerCase();
+  return Boolean(key && delete contracts[key]);
+}
+
 export function getExecutionAdapter(slug) {
   return contracts[String(slug || '').trim().toLowerCase()] || null;
 }
 
 export function executionAdapterStatus(slug) {
   const adapter = getExecutionAdapter(slug);
-  if (!adapter) return { registered: false, authorized: false, documented: false };
+  if (!adapter) return { registered: false, authorized: false, documented: false, ready: false };
   return {
     registered: true,
     authorized: adapter.authorized,
