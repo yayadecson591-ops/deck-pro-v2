@@ -1,6 +1,7 @@
 // Provider catalog for Radar Pronos. This is configuration metadata only;
 // credentials and live adapters are supplied separately and must be authorized.
 export const PRONO_FEED_CATALOG=Object.freeze([
+ {id:'oddspapi',kind:'sport_data',coverage:['football','tennis','basketball','ice_hockey','baseball','rugby','volleyball','handball','table_tennis','esports'],capabilities:['sports','fixtures','live_scores','statistics','prematch_odds','live_odds','player_props','historical_odds','line_movement','bookmaker_comparison'],access:'licensed_api',priority:10},
  {id:'sportradar',kind:'sport_data',coverage:['football','basketball','tennis','ice_hockey','baseball','rugby','volleyball','handball'],capabilities:['fixtures','results','live_events','statistics','historical','odds','probabilities'],access:'licensed_api',priority:10},
  {id:'bettingexpert',kind:'human_tipster',coverage:['football','tennis','basketball','ice_hockey','baseball','rugby','volleyball','handball'],capabilities:['human_tips','tipster_profiles','profitability','win_rate','average_odds','daily_best_bets'],access:'public_feed_or_authorized_adapter',priority:9},
  {id:'olbg',kind:'human_tipster',coverage:['football','tennis','basketball','ice_hockey','baseball','rugby','volleyball','handball'],capabilities:['human_tips','tipster_history','hot_tipsters','consensus','comments'],access:'public_feed_or_authorized_adapter',priority:9},
