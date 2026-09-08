@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { validateExecutionPair, validateAuthorizedOrder, placeAuthorizedBet } from './execution.js';
+import { reconcileTwoLegs } from './execution-reconciliation.js';
 
 const DEFAULT_TTL_MS = Number(process.env.EXECUTION_IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
 const transactions = new Map();
@@ -25,6 +26,7 @@ export function executionEngineStatus() {
     partialFailureIsReported: true,
     lifecycleTracking: true,
     reconciliationTracking: true,
+    reconciliationStateMachine: true,
     inFlight: [...transactions.values()].filter(x => x.status === 'running').length
   };
 }
@@ -36,12 +38,25 @@ export function getExecutionTransaction(idempotencyKey) {
   return transactions.get(key) || null;
 }
 
+export function reconcileExecutionTransaction(idempotencyKey) {
+  const transaction = getExecutionTransaction(idempotencyKey);
+  if (!transaction) return { ok: false, code: 'EXECUTION_TRANSACTION_NOT_FOUND' };
+  const reconciliation = reconcileTwoLegs(transaction);
+  transaction.reconciliation = reconciliation;
+  if (reconciliation.state === 'reconciliation_required') {
+    transaction.reconciliationRequired = true;
+    transaction.status = 'reconciliation_required';
+  }
+  return { ok: true, transaction, reconciliation };
+}
+
 function resultAccepted(result) {
   return result?.ok === true && result?.result?.accepted === true;
 }
 
 function resultToLegState(result) {
   if (resultAccepted(result)) return 'accepted';
+  if (result?.result?.status === 'rejected') return 'rejected';
   return 'failed';
 }
 
@@ -130,8 +145,14 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
       transaction.ok = false;
     }
 
+    transaction.reconciliation = reconcileTwoLegs(transaction);
+    if (transaction.reconciliation.state === 'reconciliation_required') {
+      transaction.reconciliationRequired = true;
+      transaction.status = 'reconciliation_required';
+    }
+
     return {
-      ok: transaction.ok,
+      ok: transaction.ok && !transaction.reconciliationRequired,
       stage: 'placement',
       accepted,
       failed,
@@ -143,6 +164,7 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
     transaction.ok = false;
     transaction.reconciliationRequired = transaction.legs.some(leg => leg.status === 'accepted');
     transaction.error = String(error?.message || error);
+    transaction.reconciliation = reconcileTwoLegs(transaction);
     return { ok: false, stage: 'placement', transaction };
   }
 }
