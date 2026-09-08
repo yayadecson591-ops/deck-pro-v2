@@ -1,5 +1,6 @@
 import express from 'express';
 import { createUser, authenticateUser, getSession, saveBookmakerToken, listBookmakerConnections, recordConnectionEvent, dbStatus } from './db/index.js';
+import { executionStrategy } from './execution-strategies.js';
 
 const router = express.Router();
 const BOOKMAKERS = ['sportybet','betmomo','premierbet','betpawa.cm','1xbet','1xwin','afropari'];
@@ -15,6 +16,10 @@ async function userAuth(req,res,next){
   } catch(e) { return res.status(e?.status||503).json({ok:false,error:e?.message||'Base de données indisponible.',code:e?.code||'DATABASE_ERROR'}); }
 }
 function fail(res,e){ return res.status(e?.status||503).json({ok:false,error:e?.message||'Erreur serveur.',code:e?.code||'ACCOUNT_API_ERROR'}); }
+function connectionView(row){
+  const strategy=executionStrategy(row.bookmaker_slug);
+  return {...row, execution:{preferred:strategy?.preferred||null, channels:strategy?.channels||{}, executionEnabled:Boolean(strategy?.preferred&&strategy?.channels?.[strategy.preferred]?.enabled&&strategy?.channels?.[strategy.preferred]?.verified)}};
+}
 
 router.get('/api/account/status', (req,res)=>res.json({ok:true,db:dbStatus(),bookmakers:BOOKMAKERS}));
 router.post('/api/account/register', async(req,res)=>{
@@ -40,7 +45,7 @@ router.post('/api/account/login', async(req,res)=>{
 });
 router.get('/api/account/me',userAuth,(req,res)=>res.json({ok:true,user:{id:req.user.user_id,username:req.user.username},expiresAt:req.user.expires_at}));
 router.get('/api/account/bookmakers',userAuth,async(req,res)=>{
-  try { res.json({ok:true,bookmakers:await listBookmakerConnections(req.user.user_id)}); } catch(e){ fail(res,e); }
+  try { res.json({ok:true,bookmakers:(await listBookmakerConnections(req.user.user_id)).map(connectionView)}); } catch(e){ fail(res,e); }
 });
 router.post('/api/account/bookmakers/:slug/token',userAuth,async(req,res)=>{
   try {
@@ -53,7 +58,7 @@ router.post('/api/account/bookmakers/:slug/token',userAuth,async(req,res)=>{
     if(!token) return res.status(400).json({ok:false,error:'Token bookmaker requis.',code:'BOOKMAKER_TOKEN_REQUIRED'});
     const saved=await saveBookmakerToken(req.user.user_id,slug,channel,token,accountLabel);
     await recordConnectionEvent(req.user.user_id,slug,'token_saved',true,{channel});
-    res.status(201).json({ok:true,connection:saved});
+    res.status(201).json({ok:true,connection:connectionView(saved)});
   } catch(e){ fail(res,e); }
 });
 
