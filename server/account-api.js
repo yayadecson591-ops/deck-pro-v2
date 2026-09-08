@@ -4,6 +4,7 @@ import { listExecutionHistory, historyStatus } from './history-store.js';
 import { executionStrategy } from './execution-strategies.js';
 import { autoStakeStatus, setAutoStake, assertAutoStakeAllowed, clearAutoStake } from './auto-stake.js';
 import { generateCoupon, rankPredictions, pronoEngineStatus } from './prono-engine.js';
+import { pronoProductStatus, validateAutoWindow, validateManualHorizon } from './prono-config.js';
 
 const router=express.Router();
 const BOOKMAKERS=['sportybet','betmomo','premierbet','betpawa.cm','1xbet','1xwin','afropari'];
@@ -12,7 +13,7 @@ function bearer(req){return String(req.headers.authorization||'').replace(/^Bear
 async function userAuth(req,res,next){try{const session=await getSession(bearer(req));if(!session)return res.status(401).json({ok:false,error:'Session utilisateur invalide ou expirée.',code:'USER_SESSION_INVALID'});req.user=session;next()}catch(e){return res.status(e?.status||503).json({ok:false,error:e?.message||'Base de données indisponible.',code:e?.code||'DATABASE_ERROR'})}}
 function fail(res,e){return res.status(e?.status||503).json({ok:false,error:e?.message||'Erreur serveur.',code:e?.code||'ACCOUNT_API_ERROR'})}
 function connectionView(row){const strategy=executionStrategy(row.bookmaker_slug);return{...row,execution:{preferred:strategy?.preferred||null,channels:strategy?.channels||{},executionEnabled:Boolean(strategy?.preferred&&strategy?.channels?.[strategy.preferred]?.enabled&&strategy?.channels?.[strategy.preferred]?.verified)}}}
-router.get('/api/account/status',(req,res)=>res.json({ok:true,db:dbStatus(),history:historyStatus(),bookmakers:BOOKMAKERS,prono:pronoEngineStatus()}));
+router.get('/api/account/status',(req,res)=>res.json({ok:true,db:dbStatus(),history:historyStatus(),bookmakers:BOOKMAKERS,prono:pronoEngineStatus(),product:pronoProductStatus()}));
 router.post('/api/account/register',async(req,res)=>{try{const username=String(req.body?.username||'').trim().toLowerCase(),code=String(req.body?.code||'').trim();if(!/^[a-z0-9_.-]{3,40}$/.test(username))return res.status(400).json({ok:false,error:'Nom utilisateur invalide.',code:'USERNAME_INVALID'});if(!/^\d{4}$/.test(code))return res.status(400).json({ok:false,error:'Le code utilisateur doit contenir exactement 4 chiffres.',code:'CODE_INVALID'});const user=await createUser(username,code);res.status(201).json({ok:true,user:{id:user.id,username:user.username}})}catch(e){fail(res,e)}});
 router.post('/api/account/login',async(req,res)=>{try{const username=String(req.body?.username||'').trim().toLowerCase(),code=String(req.body?.code||'').trim(),deviceId=String(req.body?.deviceId||'').trim().slice(0,160);if(!username||!/^\d{4}$/.test(code))return res.status(400).json({ok:false,error:'Identifiants invalides.',code:'LOGIN_INVALID'});const result=await authenticateUser(username,code,deviceId||'unknown');if(!result)return res.status(401).json({ok:false,error:'Nom utilisateur ou code incorrect.',code:'LOGIN_FAILED'});res.json({ok:true,token:result.token,expiresAt:result.expiresAt,user:{id:result.user.id,username:result.user.username}})}catch(e){fail(res,e)}});
 router.get('/api/account/me',userAuth,(req,res)=>res.json({ok:true,user:{id:req.user.user_id,username:req.user.username},expiresAt:req.user.expires_at}));
@@ -22,9 +23,11 @@ router.post('/api/account/bookmakers/:slug/token',userAuth,async(req,res)=>{try{
 router.get('/api/account/auto-stake',userAuth,(req,res)=>res.json({ok:true,autoStake:autoStakeStatus(req.user.user_id)}));
 router.post('/api/account/auto-stake',userAuth,async(req,res)=>{try{const result=setAutoStake(req.user.user_id,{enabled:req.body?.enabled,confirmationId:String(req.body?.confirmationId||'').trim(),reason:'user_action'});if(!result.ok)return res.status(422).json(result);await recordConnectionEvent(req.user.user_id,'system',req.body?.enabled?'auto_stake_enabled':'auto_stake_disabled',true,{expiresAt:result.state.expiresAt});res.json(result)}catch(e){fail(res,e)}});
 router.post('/api/account/auto-stake/authorize',userAuth,(req,res)=>{const result=assertAutoStakeAllowed(req.user.user_id);res.status(result.ok?200:403).json(result)});
-router.get('/api/account/prono/status',userAuth,(req,res)=>res.json({ok:true,engine:pronoEngineStatus()}));
+router.get('/api/account/prono/status',userAuth,(req,res)=>res.json({ok:true,engine:pronoEngineStatus(),product:pronoProductStatus()}));
 router.post('/api/account/prono/rank',userAuth,(req,res)=>{try{const predictions=Array.isArray(req.body?.predictions)?req.body.predictions:[];res.json({ok:true,predictions:rankPredictions(predictions)})}catch(e){fail(res,e)}});
 router.post('/api/account/prono/coupon',userAuth,(req,res)=>{try{const body=req.body||{};const maxSelections=Math.min(Math.max(Number(body.maxSelections)||50,1),50);const result=generateCoupon({predictions:Array.isArray(body.predictions)?body.predictions:[],maxSelections,minOdds:body.minOdds,maxOdds:body.maxOdds,bookmaker:body.bookmaker});res.json(result)}catch(e){fail(res,e)}});
+router.get('/api/account/product-config',userAuth,(req,res)=>res.json({ok:true,...pronoProductStatus()}));
+router.post('/api/account/area-window',userAuth,(req,res)=>{const area=req.body?.area;const mode=String(req.body?.mode||'auto').toLowerCase();const result=mode==='manual'?validateManualHorizon({area,days:req.body?.days}):validateAutoWindow({area,days:req.body?.days});res.status(result.ok?200:422).json(result)});
 router.post('/api/account/logout',userAuth,async(req,res)=>{try{clearAutoStake(req.user.user_id,'logout');await recordConnectionEvent(req.user.user_id,'system','logout',true,{});res.json({ok:true})}catch(e){fail(res,e)}});
 export { userAuth };
 export default router;
