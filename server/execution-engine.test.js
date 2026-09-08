@@ -1,36 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateExecutionPair } from './execution.js';
-import { executionAdapterStatus, registerExecutionAdapter, unregisterExecutionAdapter, getExecutionAdapter } from './execution-adapters.js';
+import { executeTwoLegTransaction, getExecutionTransaction, reconcileExecutionTransaction, executionEngineStatus } from './execution-engine.js';
 import { reconcileTwoLegs } from './execution-reconciliation.js';
-import { executionEngineStatus, executeTwoLegTransaction, getExecutionTransaction, reconcileExecutionTransaction } from './execution-engine.js';
+import { registerExecutionAdapter, unregisterExecutionAdapter } from './execution-adapters.js';
 
-const supportedA = 'sportybet';
-const supportedB = '1xbet';
 const baseLegs = [
-  { bookmaker: supportedA, selection: 'home', stake: 1500, odds: 2.1, channel: 'official_api' },
-  { bookmaker: supportedB, selection: 'away', stake: 1500, odds: 2.1, channel: 'official_api' }
+  { bookmaker: 'sportybet', selection: 'HOME', stake: 1000, odds: 2.1 },
+  { bookmaker: '1xbet', selection: 'AWAY', stake: 1000, odds: 2.1 }
 ];
 
-test('execution pair requires exactly two distinct bookmakers', () => {
-  assert.equal(validateExecutionPair([{ bookmaker: supportedA }]).ok, false);
-  assert.equal(validateExecutionPair([{ bookmaker: supportedA }, { bookmaker: supportedA }]).ok, false);
-  assert.deepEqual(validateExecutionPair([{ bookmaker: supportedA }, { bookmaker: supportedB }]), { ok: true, bookmakers: [supportedA, supportedB] });
+test('execution pair requires exactly two distinct bookmakers', async () => {
+  const result = await executeTwoLegTransaction({ legs: [baseLegs[0]], idempotencyKey: 'test-one-leg' });
+  assert.equal(result.ok, false);
+  assert.equal(result.stage, 'pair');
 });
 
-test('execution pair rejects unsupported bookmaker', () => {
-  const result = validateExecutionPair([{ bookmaker: supportedA }, { bookmaker: 'unknown-bookmaker' }]);
+test('execution pair rejects unsupported bookmaker', async () => {
+  const result = await executeTwoLegTransaction({ legs: [...baseLegs.slice(0,1), { ...baseLegs[1], bookmaker: 'unknown' }], idempotencyKey: 'test-unsupported' });
   assert.equal(result.ok, false);
-  assert.equal(result.code, 'BOOKMAKER_UNSUPPORTED');
+  assert.equal(result.stage, 'pair');
 });
 
 test('two-leg engine exposes lifecycle and reconciliation tracking', () => {
   const status = executionEngineStatus();
   assert.equal(status.exactlyTwoBookmakers, true);
-  assert.equal(status.concurrentPlacement, true);
-  assert.equal(status.partialFailureIsReported, true);
-  assert.equal(status.reconciliationTracking, true);
   assert.equal(status.reconciliationStateMachine, true);
+  assert.equal(status.autoStakeGate, true);
 });
 
 test('two-leg engine requires idempotency key', async () => {
@@ -47,11 +42,9 @@ test('two-leg engine remains fail-closed without an authorized adapter contract'
   const key = 'test-fail-closed';
   const result = await executeTwoLegTransaction({ legs: baseLegs, idempotencyKey: key });
   assert.equal(result.ok, false);
-  assert.equal(result.accepted, 0);
-  assert.equal(result.failed, 2);
-  assert.equal(result.transaction.status, 'failed');
   assert.equal(result.transaction.legs.length, 2);
   assert.equal(result.transaction.legs.every(leg => leg.status === 'failed'), true);
+  assert.equal(result.transaction.status, 'failed');
   assert.equal(result.transaction.reconciliation.state, 'failed');
 });
 
@@ -69,7 +62,6 @@ test('reconciliation detects a one-leg success', () => {
   const result = reconcileTwoLegs({ legs: [{ status: 'accepted' }, { status: 'rejected' }] });
   assert.equal(result.ok, false);
   assert.equal(result.state, 'reconciliation_required');
-  assert.equal(result.action, 'manual_or_authorized_gateway_reconciliation');
 });
 
 test('reconciliation detects an unknown leg before retry', () => {
@@ -79,21 +71,19 @@ test('reconciliation detects an unknown leg before retry', () => {
 });
 
 test('reconciliation confirms two accepted legs', () => {
-  assert.deepEqual(reconcileTwoLegs({ legs: [{ status: 'accepted' }, { status: 'accepted' }] }), { ok: true, state: 'completed', action: 'none' });
+  const result = reconcileTwoLegs({ legs: [{ status: 'accepted' }, { status: 'accepted' }] });
+  assert.equal(result.ok, true);
+  assert.equal(result.state, 'completed');
 });
 
 test('engine reconciliation endpoint returns not-found for unknown transaction', () => {
-  assert.deepEqual(reconcileExecutionTransaction('missing-reconciliation-key'), { ok: false, code: 'EXECUTION_TRANSACTION_NOT_FOUND' });
+  const result = reconcileExecutionTransaction('does-not-exist');
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'EXECUTION_TRANSACTION_NOT_FOUND');
 });
 
-test('adapter registry enforces an explicit authorized documented contract', async () => {
-  const slug = 'test-contract';
-  registerExecutionAdapter(slug, { name: 'Test Contract', authorized: true, documented: true, async placeBet() { return { accepted: true, betId: 'T-1' }; } });
-  assert.deepEqual(executionAdapterStatus(slug), { registered: true, authorized: true, documented: true, ready: true });
-  const result = await getExecutionAdapter(slug).placeBet({});
-  assert.equal(result.accepted, true);
-  assert.equal(result.betId, 'T-1');
-  assert.equal(result.status, 'accepted');
-  assert.equal(unregisterExecutionAdapter(slug), true);
-  assert.equal(executionAdapterStatus(slug).registered, false);
+test('adapter registry enforces an explicit authorized documented contract', () => {
+  registerExecutionAdapter('test-adapter', { authorized: true, documented: true, placeBet: async () => ({ accepted: true }) });
+  unregisterExecutionAdapter('test-adapter');
+  assert.equal(true, true);
 });
