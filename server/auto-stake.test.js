@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'crypto';
 import { autoStakeStatus, setAutoStake, assertAutoStakeAllowed, clearAutoStake } from './auto-stake.js';
 
 test('Mise Auto est désactivée par défaut', () => {
