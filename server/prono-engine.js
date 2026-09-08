@@ -85,8 +85,6 @@ export function generateCoupon({predictions=[],maxSelections=50,minOdds=null,max
   const min=num(minOdds,0);
   const max=maxOdds===null||maxOdds===undefined||maxOdds===''?Infinity:num(maxOdds,Infinity);
   let best=null;
-  // Prefer the highest-scoring compact combination that reaches the requested odds range.
-  // No filler selections are added merely to reach the 50-selection ceiling.
   for(let size=1;size<=pool.length;size++){
     const candidate=pool.slice(0,size);
     const odds=productOdds(candidate);
@@ -97,6 +95,9 @@ export function generateCoupon({predictions=[],maxSelections=50,minOdds=null,max
     const selected=[];let odds=1;
     for(const p of pool){if(odds*num(p.odds,1)>max)continue;selected.push(p);odds*=num(p.odds,1);if(odds>=min)break}
     if(odds>=min&&odds<=max)best={selections:selected,totalOdds:odds};
+  }
+  if(!best && min>0){
+    return {ok:false,code:'COUPON_ODDS_RANGE_UNSATISFIED',error:'Aucune combinaison de sélections disponibles ne respecte la plage de cotes demandée.',bookmaker:bookmaker?String(bookmaker).trim().toLowerCase():null,requested:{maxSelections:limit,minOdds:min,maxOdds:Number.isFinite(max)?max:null},selectionCount:0,totalOdds:null,selections:[],generatedAt:new Date().toISOString()};
   }
   if(!best)best={selections:pool,totalOdds:productOdds(pool)};
   return {
