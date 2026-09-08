@@ -5,12 +5,10 @@ import { getExecutionAdapter, executionAdapterStatus, listExecutionAdapters } fr
 const EXECUTION_TIMEOUT_MS=Number(process.env.EXECUTION_TIMEOUT_MS||8000);
 const configured=(process.env.BOOKMAKER_EXECUTION_BOOKS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
 const tokenBooks=(process.env.BOOKMAKER_TOKEN_BOOKS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
-
 function env(name){return String(process.env[name]||'').trim()}
 function enabled(slug){return configured.includes(slug)}
 function tokenEnabled(slug){return tokenBooks.includes(slug)}
 function verifiedRoute(slug, channel){return isExecutionChannelVerified(slug,channel)}
-
 const adapters={
   sportybet:{slug:'sportybet',name:'SportyBet',channels:['official_api','partner_sdk','user_token']},
   betmomo:{slug:'betmomo',name:'BetMomo',channels:['official_api','partner_sdk','user_token']},
@@ -20,72 +18,12 @@ const adapters={
   '1xwin':{slug:'1xwin',name:'1xWin',channels:['partner_sdk','authorized_gateway','official_api','user_token']},
   afropari:{slug:'afropari',name:'Afropari',channels:['partner_sdk','authorized_gateway','official_api']}
 };
-
-export function executionCapabilities(){
-  return Object.values(adapters).map(a=>{
-    const verified=supportedChannels().filter(channel=>verifiedRoute(a.slug,channel));
-    return {
-      bookmaker:a.slug,
-      name:a.name,
-      enabled:enabled(a.slug),
-      configuredChannels:a.channels.filter(channel=>Boolean(env(`${a.slug.toUpperCase().replace(/[^A-Z0-9]/g,'_')}_${channel.toUpperCase()}_URL`))),
-      userTokenConfigured:tokenEnabled(a.slug),
-      strategy:executionStrategy(a.slug),
-      verifiedFallbackChannels:verified,
-      adapter:executionAdapterStatus(a.slug),
-      executable:Boolean(enabled(a.slug)&&verified.length&&getExecutionAdapter(a.slug)?.authorized&&getExecutionAdapter(a.slug)?.documented),
-      status:verified.length?'VERIFIED_ROUTE_AVAILABLE':'RESEARCH_OR_AUTHORIZATION_REQUIRED'
-    };
-  });
-}
-
+export function executionCapabilities(){return Object.values(adapters).map(a=>{const verified=supportedChannels().filter(channel=>verifiedRoute(a.slug,channel));return{bookmaker:a.slug,name:a.name,enabled:enabled(a.slug),configuredChannels:a.channels.filter(channel=>Boolean(env(`${a.slug.toUpperCase().replace(/[^A-Z0-9]/g,'_')}_${channel.toUpperCase()}_URL`))),userTokenConfigured:tokenEnabled(a.slug),strategy:executionStrategy(a.slug),verifiedFallbackChannels:verified,adapter:executionAdapterStatus(a.slug),executable:Boolean(enabled(a.slug)&&verified.length&&getExecutionAdapter(a.slug)?.authorized&&getExecutionAdapter(a.slug)?.documented),status:verified.length?'VERIFIED_ROUTE_AVAILABLE':'RESEARCH_OR_AUTHORIZATION_REQUIRED'}})}
 export function executionStrategies(){return executionStrategyMatrix()}
 export function executionResearch(){return executionResearchStatus()}
 export function executionAdapters(){return listExecutionAdapters()}
 function safeId(){return crypto.randomUUID()}
 function tokenFingerprint(value){return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0,16)}
-
-export function validateAuthorizedOrder({bookmaker,selection,stake,odds,expectedOdds,availableBalance,maxStake,userToken,channel}){
-  const slug=String(bookmaker||'').trim().toLowerCase(); const a=adapters[slug];
-  if(!a)return {ok:false,code:'BOOKMAKER_UNSUPPORTED'};
-  const requestedChannel=String(channel||executionStrategy(slug)?.preferred||'').trim();
-  if(!requestedChannel||!verifiedRoute(slug,requestedChannel))return {ok:false,code:'EXECUTION_ROUTE_NOT_VERIFIED',bookmaker:slug,requestedChannel:requestedChannel||null};
-  if(requestedChannel==='user_token'&&!userToken)return {ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};
-  if(!selection)return {ok:false,code:'SELECTION_REQUIRED'};
-  const s=Number(stake); if(!Number.isFinite(s)||s<=0)return {ok:false,code:'INVALID_STAKE'};
-  if(Number.isFinite(Number(maxStake))&&s>Number(maxStake))return {ok:false,code:'STAKE_LIMIT_EXCEEDED'};
-  if(Number.isFinite(Number(availableBalance))&&s>Number(availableBalance))return {ok:false,code:'INSUFFICIENT_BALANCE'};
-  if(Number.isFinite(Number(expectedOdds))&&Number.isFinite(Number(odds))&&Number(odds)<Number(expectedOdds))return {ok:false,code:'ODDS_MOVED_DOWN',expectedOdds:Number(expectedOdds),currentOdds:Number(odds)};
-  return {ok:true,bookmaker:slug,channel:requestedChannel,stake:s,odds:Number(odds),preflight:'PASSED',tokenFingerprint:userToken?tokenFingerprint(userToken):null};
-}
-
-// Real placement is fail-closed. A bookmaker-specific adapter must be both
-// documented and explicitly authorized before any real-money request is sent.
-export async function placeAuthorizedBet({bookmaker,selection,stake,idempotencyKey,userToken,channel}){
-  const slug=String(bookmaker||'').trim().toLowerCase();
-  const a=adapters[slug];
-  if(!a)return {ok:false,code:'BOOKMAKER_UNSUPPORTED'};
-  const requestedChannel=String(channel||executionStrategy(slug)?.preferred||'').trim();
-  if(!requestedChannel||!verifiedRoute(slug,requestedChannel))return {ok:false,code:'EXECUTION_ROUTE_NOT_VERIFIED',bookmaker:slug,channel:requestedChannel||null};
-  if(requestedChannel==='user_token'&&!userToken)return {ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};
-  const adapter=getExecutionAdapter(slug);
-  if(!adapter?.authorized||!adapter?.documented){
-    return {ok:false,code:'BOOKMAKER_ADAPTER_CONTRACT_REQUIRED',bookmaker:slug,channel:requestedChannel,requestId:idempotencyKey||safeId(),message:'Route identified but bookmaker-specific placement contract is not yet configured.'};
-  }
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),EXECUTION_TIMEOUT_MS);
-  try{
-    const result=await adapter.placeBet({bookmaker:slug,selection,stake,idempotencyKey:idempotencyKey||safeId(),userToken,signal:controller.signal});
-    return {ok:true,bookmaker:slug,channel:requestedChannel,result};
-  }catch(error){
-    return {ok:false,code:'BOOKMAKER_EXECUTION_FAILED',bookmaker:slug,error:String(error?.message||error)};
-  }finally{clearTimeout(timeout)}
-}
-
-export function validateExecutionPair(legs){
-  if(!Array.isArray(legs)||legs.length!==2)return {ok:false,code:'EXACTLY_TWO_BOOKMAKERS_REQUIRED'};
-  const books=legs.map(x=>String(x?.bookmaker||'').trim().toLowerCase());
-  if(!books[0]||!books[1]||books[0]===books[1])return {ok:false,code:'TWO_DISTINCT_BOOKMAKERS_REQUIRED'};
-  if(books.some(x=>!adapters[x]))return {ok:false,code:'BOOKMAKER_UNSUPPORTED'};
-  return {ok:true,bookmakers:books};
-}
+export function validateAuthorizedOrder({bookmaker,selection,stake,odds,expectedOdds,availableBalance,maxStake,userToken,channel}){const slug=String(bookmaker||'').trim().toLowerCase();const a=adapters[slug];if(!a)return{ok:false,code:'BOOKMAKER_UNSUPPORTED'};const requestedChannel=String(channel||executionStrategy(slug)?.preferred||'').trim();if(!requestedChannel||!verifiedRoute(slug,requestedChannel))return{ok:false,code:'EXECUTION_ROUTE_NOT_VERIFIED',bookmaker:slug,requestedChannel:requestedChannel||null};if(requestedChannel==='user_token'&&!userToken)return{ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};if(!selection)return{ok:false,code:'SELECTION_REQUIRED'};const s=Number(stake);if(!Number.isFinite(s)||s<=0)return{ok:false,code:'INVALID_STAKE'};if(Number.isFinite(Number(maxStake))&&s>Number(maxStake))return{ok:false,code:'STAKE_LIMIT_EXCEEDED'};if(Number.isFinite(Number(availableBalance))&&s>Number(availableBalance))return{ok:false,code:'INSUFFICIENT_BALANCE'};if(Number.isFinite(Number(expectedOdds))&&Number.isFinite(Number(odds))&&Number(odds)<Number(expectedOdds))return{ok:false,code:'ODDS_MOVED_DOWN',expectedOdds:Number(expectedOdds),currentOdds:Number(odds)};return{ok:true,bookmaker:slug,channel:requestedChannel,stake:s,odds:Number(odds),preflight:'PASSED',tokenFingerprint:userToken?tokenFingerprint(userToken):null}}
+export async function placeAuthorizedBet({bookmaker,selection,stake,idempotencyKey,userToken,channel}){const slug=String(bookmaker||'').trim().toLowerCase();const a=adapters[slug];if(!a)return{ok:false,code:'BOOKMAKER_UNSUPPORTED'};const requestedChannel=String(channel||executionStrategy(slug)?.preferred||'').trim();if(!requestedChannel||!verifiedRoute(slug,requestedChannel))return{ok:false,code:'EXECUTION_ROUTE_NOT_VERIFIED',bookmaker:slug,channel:requestedChannel||null};if(requestedChannel==='user_token'&&!userToken)return{ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};const adapter=getExecutionAdapter(slug);if(!adapter?.authorized||!adapter?.documented)return{ok:false,code:'BOOKMAKER_ADAPTER_CONTRACT_REQUIRED',bookmaker:slug,channel:requestedChannel,requestId:idempotencyKey||safeId(),message:'Route identified but bookmaker-specific placement contract is not yet configured.'};const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),EXECUTION_TIMEOUT_MS);try{const result=await adapter.placeBet({bookmaker:slug,selection,stake,idempotencyKey:idempotencyKey||safeId(),userToken,signal:controller.signal});return{ok:result.accepted===true,bookmaker:slug,channel:requestedChannel,result}}catch(error){return{ok:false,code:'BOOKMAKER_EXECUTION_FAILED',bookmaker:slug,error:String(error?.message||error)}}finally{clearTimeout(timeout)}}
+export function validateExecutionPair(legs){if(!Array.isArray(legs)||legs.length!==2)return{ok:false,code:'EXACTLY_TWO_BOOKMAKERS_REQUIRED'};const books=legs.map(x=>String(x?.bookmaker||'').trim().toLowerCase());if(!books[0]||!books[1]||books[0]===books[1])return{ok:false,code:'TWO_DISTINCT_BOOKMAKERS_REQUIRED'};if(books.some(x=>!adapters[x]))return{ok:false,code:'BOOKMAKER_UNSUPPORTED'};return{ok:true,bookmakers:books}}
