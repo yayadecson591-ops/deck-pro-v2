@@ -3,102 +3,48 @@
 // bookmaker and the user's account. Affiliate programs alone do NOT authorize bet placement.
 
 const names = {
-  sportybet: 'SportyBet',
-  betmomo: 'BetMomo',
-  premierbet: 'Premier Bet',
-  'betpawa.cm': 'betPawa Cameroon',
-  '1xbet': '1xBet',
-  '1xwin': '1xWin',
-  afropari: 'Afropari'
+  sportybet:'SportyBet', betmomo:'BetMomo', premierbet:'Premier Bet', 'betpawa.cm':'betPawa Cameroon',
+  '1xbet':'1xBet', '1xwin':'1xWin', afropari:'Afropari', betclic:'Betclic Cameroon',
+  yellowbet:'Yellow Bet', '22bet':'22Bet', pmuc:'PMUC', supergooal:'Supergooal', betwinner:'BetWinner',
+  melbet:'Melbet', bettomax:'Bettomax', paripesa:'PariPesa', onebet:'OneBet', betsson:'Betsson Africa'
 };
 
-const channels = [
-  'official_api',
-  'user_token',
-  'partner_sdk',
-  'browser_rpa',
-  'android_rpa',
-  'deeplink_coupon',
-  'authorized_gateway'
-];
-
+const channels = ['official_api','user_token','partner_sdk','browser_rpa','android_rpa','deeplink_coupon','authorized_gateway'];
 const route = (status='unknown', enabled=false, note='') => ({ status, verified: status === 'verified', enabled, note });
 
-// Research-backed access routes. "partner_program" is deliberately represented
-// separately from an execution channel: affiliation/traffic tracking is not bet placement.
-const strategy = {
-  sportybet: {
-    slug:'sportybet', name:names.sportybet,
-    channels:Object.fromEntries(channels.map(c => [c, route()])),
-    preferred:null, requiresHumanStep:false,
-    evidence:['official_partner_program'],
-    notes:'Official partner program found. No public official bet-placement API or partner execution contract verified yet. Web automation must not be enabled without explicit authorization.'
-  },
-  betmomo: {
-    slug:'betmomo', name:names.betmomo,
-    channels:Object.fromEntries(channels.map(c => [c, route()])),
-    preferred:null, requiresHumanStep:false,
-    evidence:['official_web_app_channels'],
-    notes:'Official web/mobile/phone betting channels found. No public official execution API, SDK or authorized third-party placement route verified yet.'
-  },
-  premierbet: {
-    slug:'premierbet', name:names.premierbet,
-    channels:Object.fromEntries(channels.map(c => [c, route()])),
-    preferred:'deeplink_coupon', requiresHumanStep:true,
-    evidence:['official_partner_program','official_share_bet_flow'],
-    notes:'Official partner program found. Share-Bet/deep-link flow is useful for prefilled coupons, but final automatic placement is not yet verified; keep execution disabled until an execution contract is confirmed.'
-  },
-  'betpawa.cm': {
-    slug:'betpawa.cm', name:names['betpawa.cm'],
-    channels:Object.fromEntries(channels.map(c => [c, route()])),
-    preferred:'partner_sdk', requiresHumanStep:false,
-    evidence:['pawatech_b2b_platform'],
-    notes:'pawaTech publicly provides sportsbook/player-management SaaS and turnkey operator solutions. This establishes a B2B technology route, not a player-account bet-placement API. User-level execution remains disabled until written authorization/technical contract exists.'
-  },
-  '1xbet': {
-    slug:'1xbet', name:names['1xbet'],
-    channels:Object.fromEntries(channels.map(c => [c, route()])),
-    preferred:'partner_sdk', requiresHumanStep:false,
-    evidence:['official_partner_program','official_partner_integration_lead'],
-    notes:'Official partner program exists. Do not treat affiliate feeds or user session tokens as a placement API. Execution requires a verified operator/B2B contract or documented authorized account-execution interface.'
-  },
-  '1xwin': {
-    slug:'1xwin', name:names['1xwin'],
-    channels:Object.fromEntries(channels.map(c => [c, route()])),
-    preferred:'partner_sdk', requiresHumanStep:false,
-    evidence:['official_partner_program','partner_api_lead'],
-    notes:'Partner/API integration lead found, but placement permission is not yet proven. Keep disabled until the API contract explicitly permits bet placement for the relevant player accounts.'
-  },
-  afropari: {
-    slug:'afropari', name:names.afropari,
-    channels:Object.fromEntries(channels.map(c => [c, route()])),
-    preferred:'partner_sdk', requiresHumanStep:false,
-    evidence:['official_partner_program'],
-    notes:'Official affiliate program and partner tooling found. Affiliate links/promo codes are acquisition tools, not bet-placement APIs. Execution remains disabled pending an authorized execution interface.'
-  }
-};
+const strategy = Object.fromEntries(Object.entries(names).map(([slug,name]) => [slug, {
+  slug, name,
+  channels:Object.fromEntries(channels.map(c => [c, route()])),
+  preferred:null, requiresHumanStep:false,
+  evidence:[],
+  notes:'Bookmaker ajouté à la couverture Deck Pro. Une intégration de mise réelle ne sera activée qu’après vérification d’un canal officiel/API/B2B et de l’autorisation de placement pour le compte concerné.'
+}]));
 
-export function executionStrategy(slug) {
-  return strategy[String(slug || '').trim().toLowerCase()] || null;
-}
+// Existing research already recorded in Deck Pro. These remain disabled until an
+// explicit placement contract is verified; affiliate/partner programs alone do not authorize bets.
+strategy.sportybet.evidence=['official_partner_program'];
+strategy.sportybet.notes='Programme partenaire officiel identifié. Aucun contrat public de placement de paris vérifié dans le projet à ce stade.';
+strategy.betmomo.evidence=['official_web_app_channels'];
+strategy.betmomo.notes='Canaux web/mobile officiels identifiés. Aucun canal officiel de placement tiers vérifié dans le projet à ce stade.';
+strategy.premierbet.evidence=['official_partner_program','official_share_bet_flow'];
+strategy.premierbet.preferred='deeplink_coupon';
+strategy.premierbet.requiresHumanStep=true;
+strategy.premierbet.notes='Partenaire et Share-Bet identifiés ; le deep-link peut préparer un coupon, mais le placement automatique final reste à autoriser/vérifier.';
+strategy['betpawa.cm'].evidence=['pawatech_b2b_platform'];
+strategy['betpawa.cm'].preferred='partner_sdk';
+strategy['betpawa.cm'].notes='Route B2B pawaTech identifiée. Elle ne vaut pas automatiquement autorisation de placer des paris sur un compte joueur ; contrat d’exécution requis.';
+strategy['1xbet'].evidence=['official_partner_program'];
+strategy['1xbet'].preferred='partner_sdk';
+strategy['1xbet'].notes='Programme partenaire identifié. Les flux affiliés ou sessions utilisateur ne sont pas considérés comme API de placement ; contrat autorisé requis.';
+strategy['1xwin'].evidence=['official_partner_program'];
+strategy['1xwin'].preferred='partner_sdk';
+strategy['1xwin'].notes='Piste partenaire/API identifiée ; placement réel désactivé tant que le droit de placement n’est pas explicitement vérifié.';
+strategy.afropari.evidence=['official_partner_program'];
+strategy.afropari.preferred='partner_sdk';
+strategy.afropari.notes='Outillage partenaire identifié ; affiliation seule ≠ droit de placement. Canal d’exécution officiel à vérifier.';
 
+export function executionStrategy(slug) { return strategy[String(slug || '').trim().toLowerCase()] || null; }
 export function executionStrategyMatrix() { return Object.values(strategy); }
-
-export function isExecutionChannelVerified(slug, channel) {
-  const s = executionStrategy(slug);
-  return Boolean(s?.channels?.[channel]?.verified && s.channels[channel].enabled);
-}
-
+export function isExecutionChannelVerified(slug, channel) { const s=executionStrategy(slug); return Boolean(s?.channels?.[channel]?.verified && s.channels[channel].enabled); }
 export function supportedChannels() { return [...channels]; }
-
-export function executionResearchStatus() {
-  return Object.values(strategy).map(s => ({
-    bookmaker:s.slug,
-    name:s.name,
-    preferred:s.preferred,
-    evidence:s.evidence,
-    requiresHumanStep:s.requiresHumanStep,
-    channels:s.channels,
-    notes:s.notes
-  }));
-}
+export function executionResearchStatus() { return Object.values(strategy).map(s=>({bookmaker:s.slug,name:s.name,preferred:s.preferred,evidence:s.evidence,requiresHumanStep:s.requiresHumanStep,channels:s.channels,notes:s.notes})); }
