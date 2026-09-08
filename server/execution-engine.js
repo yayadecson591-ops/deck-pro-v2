@@ -10,7 +10,7 @@ function keyOf(value) { return String(value || '').trim(); }
 function prune() {
   const cutoff = now() - DEFAULT_TTL_MS;
   for (const [key, value] of transactions) {
-    if (value.createdAt < cutoff) transactions.delete(key);
+    if (value.createdAt < cutoff && value.status !== 'running') transactions.delete(key);
   }
 }
 
@@ -23,6 +23,7 @@ export function executionEngineStatus() {
     idempotency: true,
     concurrentPlacement: true,
     partialFailureIsReported: true,
+    lifecycleTracking: true,
     inFlight: [...transactions.values()].filter(x => x.status === 'running').length
   };
 }
@@ -34,6 +35,11 @@ export function getExecutionTransaction(idempotencyKey) {
   return transactions.get(key) || null;
 }
 
+function resultToLegState(result) {
+  if (result?.ok === true) return 'accepted';
+  return 'failed';
+}
+
 export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId, preflightContext = {} }) {
   prune();
   const key = keyOf(idempotencyKey);
@@ -41,7 +47,11 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
 
   const existing = transactions.get(key);
   if (existing) {
-    return { ok: existing.status === 'completed', replay: true, transaction: existing };
+    return {
+      ok: existing.status === 'completed',
+      replay: true,
+      transaction: existing
+    };
   }
 
   const pair = validateExecutionPair(legs);
@@ -68,6 +78,7 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
     legs: legs.map((leg, index) => ({
       index,
       bookmaker: pair.bookmakers[index],
+      channel: checks[index].channel,
       stake: checks[index].stake,
       odds: checks[index].odds,
       selection: String(leg.selection || ''),
@@ -77,26 +88,51 @@ export async function executeTwoLegTransaction({ legs, idempotencyKey, requestId
   transactions.set(key, transaction);
 
   try {
-    // Both legs start together. This minimizes the exposure window between the
-    // two complementary bets. The adapters themselves remain fail-closed.
-    const results = await Promise.all(legs.map((leg, index) => placeAuthorizedBet({
+    // Both legs start together. allSettled guarantees that one rejected promise
+    // cannot hide the outcome of the other leg.
+    const settled = await Promise.allSettled(legs.map((leg, index) => placeAuthorizedBet({
       bookmaker: leg.bookmaker,
       selection: leg.selection,
       stake: checks[index].stake,
       idempotencyKey: `${key}:${index}`,
       userToken: leg.userToken,
-      channel: leg.channel
+      channel: checks[index].channel
     })));
+
+    const results = settled.map(item => item.status === 'fulfilled'
+      ? item.value
+      : { ok: false, code: 'BOOKMAKER_EXECUTION_FAILED', error: String(item.reason?.message || item.reason) });
 
     transaction.legs = transaction.legs.map((leg, index) => ({
       ...leg,
-      status: results[index]?.ok ? 'accepted' : 'failed',
+      status: resultToLegState(results[index]),
+      completedAt: now(),
       result: results[index]
     }));
     transaction.completedAt = now();
-    transaction.status = results.every(x => x?.ok) ? 'completed' : 'partial_failure';
-    transaction.ok = transaction.status === 'completed';
-    return { ok: transaction.ok, stage: 'placement', transaction };
+
+    const accepted = results.filter(x => x?.ok === true).length;
+    const failed = results.length - accepted;
+    if (failed === 0) {
+      transaction.status = 'completed';
+      transaction.ok = true;
+    } else if (accepted > 0) {
+      transaction.status = 'partial_failure';
+      transaction.ok = false;
+      transaction.reconciliationRequired = true;
+      transaction.reconciliationReason = 'Une seule jambe a été acceptée ou les résultats sont divergents.';
+    } else {
+      transaction.status = 'failed';
+      transaction.ok = false;
+    }
+
+    return {
+      ok: transaction.ok,
+      stage: 'placement',
+      accepted,
+      failed,
+      transaction
+    };
   } catch (error) {
     transaction.completedAt = now();
     transaction.status = 'failed';
