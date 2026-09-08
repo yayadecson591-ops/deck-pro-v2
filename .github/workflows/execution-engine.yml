@@ -1,4 +1,4 @@
-name: Deck Pro execution engine
+name: Deck Pro execution and decision flow
 
 on:
   push:
@@ -7,6 +7,9 @@ on:
       - 'server/execution-engine.js'
       - 'server/execution-adapters.js'
       - 'server/execution-engine.test.js'
+      - 'server/decision-engine.js'
+      - 'server/decision-engine.test.js'
+      - 'server/radar-decision-execution.integration.test.js'
       - 'server/package.json'
   pull_request:
     paths:
@@ -14,6 +17,9 @@ on:
       - 'server/execution-engine.js'
       - 'server/execution-adapters.js'
       - 'server/execution-engine.test.js'
+      - 'server/decision-engine.js'
+      - 'server/decision-engine.test.js'
+      - 'server/radar-decision-execution.integration.test.js'
       - 'server/package.json'
 
 jobs:
@@ -29,3 +35,4 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run test:execution
+      - run: npm run test:decision
