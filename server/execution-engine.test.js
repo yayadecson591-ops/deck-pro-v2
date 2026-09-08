@@ -38,24 +38,24 @@ test('two-leg engine fails preflight when user tokens are required but absent', 
   assert.equal(result.code, 'PREFLIGHT_FAILED');
 });
 
-test('two-leg engine remains fail-closed without an authorized adapter contract', async () => {
+test('two-leg engine remains fail-closed when no verified execution route exists', async () => {
   const key = 'test-fail-closed';
   const result = await executeTwoLegTransaction({ legs: baseLegs, idempotencyKey: key });
   assert.equal(result.ok, false);
-  assert.equal(result.transaction.legs.length, 2);
-  assert.equal(result.transaction.legs.every(leg => leg.status === 'failed'), true);
-  assert.equal(result.transaction.status, 'failed');
-  assert.equal(result.transaction.reconciliation.state, 'failed');
+  assert.equal(result.stage, 'preflight');
+  assert.equal(result.code, 'PREFLIGHT_FAILED');
+  assert.equal(result.checks.every(check => check.ok === false), true);
+  assert.equal(getExecutionTransaction(key), null);
 });
 
-test('two-leg engine replays an existing idempotency transaction', async () => {
-  const key = 'test-replay';
+test('two-leg engine does not create an idempotency transaction when preflight fails', async () => {
+  const key = 'test-replay-preflight-fail';
   const first = await executeTwoLegTransaction({ legs: baseLegs, idempotencyKey: key });
   const replay = await executeTwoLegTransaction({ legs: baseLegs, idempotencyKey: key });
-  assert.equal(replay.replay, true);
-  assert.equal(replay.transaction.idempotencyKey, key);
-  assert.deepEqual(getExecutionTransaction(key), replay.transaction);
-  assert.equal(first.transaction.id, replay.transaction.id);
+  assert.equal(first.code, 'PREFLIGHT_FAILED');
+  assert.equal(replay.code, 'PREFLIGHT_FAILED');
+  assert.equal(replay.replay, undefined);
+  assert.equal(getExecutionTransaction(key), null);
 });
 
 test('reconciliation detects a one-leg success', () => {
@@ -83,7 +83,8 @@ test('engine reconciliation endpoint returns not-found for unknown transaction',
 });
 
 test('adapter registry enforces an explicit authorized documented contract', () => {
-  registerExecutionAdapter('test-adapter', { authorized: true, documented: true, placeBet: async () => ({ accepted: true }) });
-  unregisterExecutionAdapter('test-adapter');
+  const slug = 'test-bookmaker';
+  registerExecutionAdapter(slug, { name: 'Test', authorized: true, documented: true, placeBet: async () => ({ accepted: true, betId: 'test-1' }) });
+  unregisterExecutionAdapter(slug);
   assert.equal(true, true);
 });
