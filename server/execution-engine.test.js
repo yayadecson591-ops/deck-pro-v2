@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateExecutionPair } from './execution.js';
+import { executionEngineStatus, executeTwoLegTransaction, getExecutionTransaction } from './execution-engine.js';
 
 const supportedA = 'sportybet';
 const supportedB = '1xbet';
+const baseLegs = [
+  { bookmaker: supportedA, selection: 'home', stake: 1500, odds: 2.1, channel: 'official_api' },
+  { bookmaker: supportedB, selection: 'away', stake: 1500, odds: 2.1, channel: 'official_api' }
+];
 
 test('execution pair requires exactly two distinct bookmakers', () => {
   assert.equal(validateExecutionPair([{ bookmaker: supportedA }]).ok, false);
@@ -21,4 +26,46 @@ test('execution pair rejects unsupported bookmaker', () => {
   ]);
   assert.equal(result.ok, false);
   assert.equal(result.code, 'BOOKMAKER_UNSUPPORTED');
+});
+
+test('two-leg engine exposes lifecycle and reconciliation tracking', () => {
+  const status = executionEngineStatus();
+  assert.equal(status.exactlyTwoBookmakers, true);
+  assert.equal(status.concurrentPlacement, true);
+  assert.equal(status.partialFailureIsReported, true);
+  assert.equal(status.reconciliationTracking, true);
+});
+
+test('two-leg engine requires idempotency key', async () => {
+  const result = await executeTwoLegTransaction({ legs: baseLegs });
+  assert.equal(result.code, 'IDEMPOTENCY_KEY_REQUIRED');
+});
+
+test('two-leg engine fails preflight when user tokens are required but absent', async () => {
+  const result = await executeTwoLegTransaction({
+    legs: baseLegs.map(leg => ({ ...leg, channel: 'user_token' })),
+    idempotencyKey: 'test-preflight'
+  });
+  assert.equal(result.code, 'PREFLIGHT_FAILED');
+});
+
+test('two-leg engine remains fail-closed without an authorized adapter contract', async () => {
+  const key = 'test-fail-closed';
+  const result = await executeTwoLegTransaction({ legs: baseLegs, idempotencyKey: key });
+  assert.equal(result.ok, false);
+  assert.equal(result.accepted, 0);
+  assert.equal(result.failed, 2);
+  assert.equal(result.transaction.status, 'failed');
+  assert.equal(result.transaction.legs.length, 2);
+  assert.equal(result.transaction.legs.every(leg => leg.status === 'failed'), true);
+});
+
+test('two-leg engine replays an existing idempotency transaction', async () => {
+  const key = 'test-replay';
+  const first = await executeTwoLegTransaction({ legs: baseLegs, idempotencyKey: key });
+  const replay = await executeTwoLegTransaction({ legs: baseLegs, idempotencyKey: key });
+  assert.equal(replay.replay, true);
+  assert.equal(replay.transaction.idempotencyKey, key);
+  assert.deepEqual(getExecutionTransaction(key), replay.transaction);
+  assert.equal(first.transaction.id, replay.transaction.id);
 });
