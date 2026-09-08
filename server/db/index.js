@@ -4,7 +4,22 @@ import crypto from 'crypto';
 const { Pool } = pg;
 const DATABASE_URL = String(process.env.DATABASE_URL || '').trim();
 const TOKEN_SECRET = String(process.env.BOOKMAKER_TOKEN_ENCRYPTION_KEY || '').trim();
-const pool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL, ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false }, max: Number(process.env.DB_POOL_MAX || 10) }) : null;
+
+// Only create a database pool when Render provides a real PostgreSQL URL.
+// This prevents a malformed value such as "base" from crashing the server at startup.
+let pool = null;
+try {
+  if (/^postgres(?:ql)?:\/\//i.test(DATABASE_URL)) {
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
+      max: Number(process.env.DB_POOL_MAX || 10)
+    });
+  }
+} catch (error) {
+  console.warn('Deck Pro DB configuration ignored:', error?.message || error);
+  pool = null;
+}
 
 function requireDb(){ if(!pool) throw Object.assign(new Error('DATABASE_NOT_CONFIGURED'),{code:'DATABASE_NOT_CONFIGURED',status:503}); }
 function key(){ if(!/^[a-f0-9]{64}$/i.test(TOKEN_SECRET)) throw Object.assign(new Error('BOOKMAKER_TOKEN_ENCRYPTION_KEY must be 64 hex characters'),{code:'TOKEN_KEY_NOT_CONFIGURED',status:503}); return Buffer.from(TOKEN_SECRET,'hex'); }
