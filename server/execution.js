@@ -3,6 +3,7 @@ import { executionStrategy, executionStrategyMatrix, supportedChannels, isExecut
 import { getExecutionAdapter, executionAdapterStatus, listExecutionAdapters } from './execution-adapters.js';
 import { providerStatus, providerForBookmaker } from './provider-integrations.js';
 import { bookmakerOnboardingStatus, bookmakerOnboardingFor } from './bookmaker-onboarding.js';
+import { registerProviderExecutionAdapters, providerExecutionAdapterStatus } from './provider-execution-adapters.js';
 
 const EXECUTION_TIMEOUT_MS=Number(process.env.EXECUTION_TIMEOUT_MS||8000);
 const configured=(process.env.BOOKMAKER_EXECUTION_BOOKS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
@@ -17,12 +18,17 @@ const bookmakerDefinitions = [
 ];
 const adapters=Object.fromEntries(bookmakerDefinitions.map(([slug,name,channels])=>[slug,{slug,name,channels}]));
 
+// Provider adapters stay fail-closed until the provider supplies the exact
+// production contract, credentials and explicit authorization flag.
+registerProviderExecutionAdapters();
+
 export function executionCapabilities(){return Object.values(adapters).map(a=>{const verified=supportedChannels().filter(channel=>verifiedRoute(a.slug,channel));const provider=providerForBookmaker(a.slug);const onboarding=bookmakerOnboardingFor(a.slug);const adapter=executionAdapterStatus(a.slug);return{bookmaker:a.slug,name:a.name,enabled:enabled(a.slug),configuredChannels:a.channels.filter(channel=>Boolean(env(`${a.slug.toUpperCase().replace(/[^A-Z0-9]/g,'_')}_${channel.toUpperCase()}_URL`))),userTokenConfigured:tokenEnabled(a.slug),strategy:executionStrategy(a.slug),verifiedFallbackChannels:verified,provider:provider?{id:provider[0],name:provider[1].name,scope:provider[1].scope,status:provider[1].status}:null,onboarding:onboarding?{route:onboarding.route,status:onboarding.status,provider:onboarding.provider||null,contact:onboarding.contact||null,configured:onboarding.credentials.every(key=>Boolean(env(key)))}:null,adapter,executable:Boolean(enabled(a.slug)&&verified.length&&adapter?.authorized&&adapter?.documented),status:verified.length?'VERIFIED_ROUTE_AVAILABLE':'RESEARCH_OR_AUTHORIZATION_REQUIRED'}})}
 export function executionOnboarding(){return bookmakerOnboardingStatus()}
 export function executionProviders(){return providerStatus()}
 export function executionStrategies(){return executionStrategyMatrix()}
 export function executionResearch(){return executionResearchStatus()}
 export function executionAdapters(){return listExecutionAdapters()}
+export function executionProviderAdapters(){return providerExecutionAdapterStatus()}
 function safeId(){return crypto.randomUUID()}
 function tokenFingerprint(value){return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0,16)}
 export function validateAuthorizedOrder({bookmaker,selection,stake,odds,expectedOdds,availableBalance,maxStake,userToken,channel}){const slug=String(bookmaker||'').trim().toLowerCase();const a=adapters[slug];if(!a)return{ok:false,code:'BOOKMAKER_UNSUPPORTED'};const requestedChannel=String(channel||executionStrategy(slug)?.preferred||'').trim();if(!requestedChannel||!verifiedRoute(slug,requestedChannel))return{ok:false,code:'EXECUTION_ROUTE_NOT_VERIFIED',bookmaker:slug,requestedChannel:requestedChannel||null};if(requestedChannel==='user_token'&&!userToken)return{ok:false,code:'BOOKMAKER_USER_TOKEN_REQUIRED'};if(!selection)return{ok:false,code:'SELECTION_REQUIRED'};const s=Number(stake);if(!Number.isFinite(s)||s<=0)return{ok:false,code:'INVALID_STAKE'};if(Number.isFinite(Number(maxStake))&&s>Number(maxStake))return{ok:false,code:'STAKE_LIMIT_EXCEEDED'};if(Number.isFinite(Number(availableBalance))&&s>Number(availableBalance))return{ok:false,code:'INSUFFICIENT_BALANCE'};if(Number.isFinite(Number(expectedOdds))&&Number.isFinite(Number(odds))&&Number(odds)<Number(expectedOdds))return{ok:false,code:'ODDS_MOVED_DOWN',expectedOdds:Number(expectedOdds),currentOdds:Number(odds)};return{ok:true,bookmaker:slug,channel:requestedChannel,stake:s,odds:Number(odds),preflight:'PASSED',tokenFingerprint:userToken?tokenFingerprint(userToken):null}}
