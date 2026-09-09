@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import accountRouter from './account-api.js';
-import { executionCapabilities, executionOnboarding, validateExecutionPair, validateAuthorizedOrder, placeAuthorizedBet } from './execution.js';
+import { executionCapabilities, executionOnboarding, executionProviderAdapters, validateExecutionPair, validateAuthorizedOrder, placeAuthorizedBet } from './execution.js';
 import { executionEngineStatus, executeTwoLegTransaction, getExecutionTransaction, reconcileExecutionTransaction } from './execution-engine.js';
 import { relayRole, relayExecutionAllowed, relayStatus } from './relay.js';
 
@@ -44,3 +44,4 @@ app.get('/api/activate/verify',auth,(req,res)=>res.json({ok:true,role:'owner'}))
 app.get('/api/system/config-check',auth,(req,res)=>res.json({ok:true,checks:{oddsPapi:!!API_KEY,ownerAuth:!!effectiveHash&&!!effectiveSecret,origins:ORIGINS.length>0,bookmakers:BOOKMAKERS.length>0,executionLayer:true,executionEngine:true,relayLayer:true},execution:executionCapabilities(),executionEngine:executionEngineStatus(),relayRole:relayRole(),version:'V128'}));
 app.get('/api/execution/capabilities',auth,(req,res)=>res.json({ok:true,version:'V128',policy:'Seuls les canaux API officiellement autorisés et explicitement configurés peuvent être activés. Aucun contournement, scraping ou automatisation de protections de bookmaker.',capabilities:executionCapabilities(),relayRole:relayRole()}));
 app.get('/api/execution/onboarding',auth,(req,res)=>res.json({ok:true,version:'V128',bookmakers:executionOnboarding()}));
+app.get('/api/execution/provider-adapters',auth,(req,res)=>res.json({ok:true,version:'V129',adapters:executionProviderAdapters()}));
