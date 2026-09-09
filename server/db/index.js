@@ -53,6 +53,14 @@ export async function createUser(username,code){
   requireDb(); if(!/^\d{4}$/.test(String(code))) throw Object.assign(new Error('CODE_MUST_BE_4_DIGITS'),{code:'CODE_MUST_BE_4_DIGITS',status:400});
   const r=await pool.query('INSERT INTO deck_users(username,code_hash) VALUES($1,$2) RETURNING id,username,created_at',[String(username).trim().toLowerCase(),hashCode(username,code)]); return r.rows[0];
 }
+export async function ensureOwnerUser(ownerKey){
+  requireDb();
+  const username='owner_'+crypto.createHash('sha256').update(String(ownerKey)).digest('hex').slice(0,24);
+  const existing=await pool.query('SELECT id,username FROM deck_users WHERE username=$1',[username]);
+  if(existing.rowCount)return existing.rows[0];
+  const r=await pool.query('INSERT INTO deck_users(username,code_hash) VALUES($1,$2) RETURNING id,username',[username,hashCode(username,'0000')]);
+  return r.rows[0];
+}
 export async function authenticateUser(username,code,deviceId){
   requireDb(); const u=await pool.query('SELECT id,username FROM deck_users WHERE username=$1 AND code_hash=$2',[String(username).trim().toLowerCase(),hashCode(username,code)]); if(!u.rowCount) return null;
   const raw=crypto.randomBytes(32).toString('base64url'); const ttl=Number(process.env.USER_SESSION_TTL_MS||2592000000); const expires=new Date(Date.now()+ttl);
