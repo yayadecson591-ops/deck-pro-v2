@@ -27,13 +27,41 @@ CREATE TABLE IF NOT EXISTS bookmaker_connections (
   token_ciphertext TEXT,
   token_iv TEXT,
   token_tag TEXT,
-  account_label TEXT,
+  credentials_ciphertext TEXT,
+  credentials_iv TEXT,
+  credentials_tag TEXT,
+  sync_secret_hash TEXT,
+  account_label TEXT NOT NULL DEFAULT '',
+  auto_bet_enabled BOOLEAN NOT NULL DEFAULT false,
   status TEXT NOT NULL DEFAULT 'configured',
+  last_sync_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(user_id, bookmaker_slug)
+  UNIQUE(user_id, bookmaker_slug, account_label)
 );
 CREATE INDEX IF NOT EXISTS bookmaker_connections_user_idx ON bookmaker_connections(user_id);
+CREATE INDEX IF NOT EXISTS bookmaker_connections_slug_idx ON bookmaker_connections(user_id, bookmaker_slug);
+
+DO $$ BEGIN
+  ALTER TABLE bookmaker_connections ADD COLUMN IF NOT EXISTS credentials_ciphertext TEXT;
+  ALTER TABLE bookmaker_connections ADD COLUMN IF NOT EXISTS credentials_iv TEXT;
+  ALTER TABLE bookmaker_connections ADD COLUMN IF NOT EXISTS credentials_tag TEXT;
+  ALTER TABLE bookmaker_connections ADD COLUMN IF NOT EXISTS sync_secret_hash TEXT;
+  ALTER TABLE bookmaker_connections ADD COLUMN IF NOT EXISTS account_label TEXT NOT NULL DEFAULT '';
+  ALTER TABLE bookmaker_connections ADD COLUMN IF NOT EXISTS auto_bet_enabled BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE bookmaker_connections ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE bookmaker_connections DROP CONSTRAINT IF EXISTS bookmaker_connections_user_id_bookmaker_slug_key;
+EXCEPTION WHEN undefined_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE bookmaker_connections ADD CONSTRAINT bookmaker_connections_user_slug_label_key UNIQUE(user_id, bookmaker_slug, account_label);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS bookmaker_connection_events (
   id BIGSERIAL PRIMARY KEY,
