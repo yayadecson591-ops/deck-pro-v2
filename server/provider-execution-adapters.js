@@ -1,40 +1,63 @@
-// Provider-backed bookmaker execution adapters.
-// IMPORTANT: this module never invents provider endpoints or credentials.
-// An adapter becomes executable only when the provider contract, endpoint, token,
-// and explicit authorization flag are supplied through Render environment variables.
+// Deck Pro real-access execution adapter registry.
+// One adapter slot is prepared for EACH configured bookmaker.
+// No endpoint, token or credential is invented here.
+// A route becomes executable only after its real technical contract is supplied.
 
 import { registerExecutionAdapter } from './execution-adapters.js';
 
 function env(name) { return String(process.env[name] || '').trim(); }
 function truthy(name) { return ['1','true','yes','on'].includes(env(name).toLowerCase()); }
 function json(value) { try { return JSON.parse(value); } catch { return null; } }
+function prefix(slug) { return slug.toUpperCase().replace(/[^A-Z0-9]/g, '_'); }
 
-const routes = [
-  { slug: 'betsson', provider: 'oddsmatrix', prefix: 'ODDSMATRIX', name: 'Betsson Africa via OddsMatrix / EveryMatrix' },
-  { slug: 'betpawa.cm', provider: 'pawatech', prefix: 'PAWATECH', name: 'betPawa Cameroon via pawaTech' },
-  { slug: '1xbet', provider: 'onexbet', prefix: 'ONEXBET', name: '1xBet official B2B route' }
+const definitions = [
+  ['sportybet','SportyBet','BOOKMAKER'],
+  ['betmomo','BetMomo','BOOKMAKER'],
+  ['premierbet','Premier Bet','BOOKMAKER'],
+  ['betpawa.cm','betPawa Cameroon','PAWATECH'],
+  ['1xbet','1xBet','ONEXBET'],
+  ['1xwin','1xWin','BOOKMAKER'],
+  ['afropari','Afropari','BOOKMAKER'],
+  ['betclic','Betclic Cameroon','BOOKMAKER'],
+  ['yellowbet','Yellow Bet','BOOKMAKER'],
+  ['22bet','22Bet','BOOKMAKER'],
+  ['pmuc','PMUC','BOOKMAKER'],
+  ['supergooal','Supergooal','BOOKMAKER'],
+  ['betwinner','BetWinner','BOOKMAKER'],
+  ['melbet','Melbet','BOOKMAKER'],
+  ['bettomax','Bettomax','BOOKMAKER'],
+  ['paripesa','PariPesa','BOOKMAKER'],
+  ['onebet','OneBet','BOOKMAKER'],
+  ['betsson','Betsson Africa','ODDSMATRIX']
 ];
+
+function routeConfig([slug,name,provider]) {
+  const p = provider === 'BOOKMAKER' ? `BOOKMAKER_${prefix(slug)}` : provider;
+  return { slug, name, provider, prefix:p };
+}
+
+const routes = definitions.map(routeConfig);
 
 function configured(route) {
   return Boolean(
     env(`${route.prefix}_API_BASE_URL`) &&
     env(`${route.prefix}_BET_PLACE_PATH`) &&
     env(`${route.prefix}_ACCESS_TOKEN`) &&
+    truthy(`${route.prefix}_CONTRACT_VERIFIED`) &&
     truthy(`${route.prefix}_EXECUTION_AUTHORIZED`)
   );
 }
 
 function buildAdapter(route) {
-  const base = env(`${route.prefix}_API_BASE_URL`).replace(/\/$/, '');
-  const path = env(`${route.prefix}_BET_PLACE_PATH`).startsWith('/')
-    ? env(`${route.prefix}_BET_PLACE_PATH`)
-    : `/${env(`${route.prefix}_BET_PLACE_PATH`)}`;
   return {
-    name: route.name,
+    name: `${route.name} execution adapter`,
     authorized: configured(route),
     documented: configured(route),
     placeBet: async ({ selection, stake, idempotencyKey, signal }) => {
       if (!configured(route)) throw new Error(`${route.prefix}_EXECUTION_CONTRACT_NOT_CONFIGURED`);
+      const base = env(`${route.prefix}_API_BASE_URL`).replace(/\/$/, '');
+      const configuredPath = env(`${route.prefix}_BET_PLACE_PATH`);
+      const path = configuredPath.startsWith('/') ? configuredPath : `/${configuredPath}`;
       const headers = {
         authorization: `Bearer ${env(`${route.prefix}_ACCESS_TOKEN`)}`,
         'content-type': 'application/json',
@@ -51,7 +74,7 @@ function buildAdapter(route) {
       const rawText = await response.text();
       const raw = json(rawText) ?? rawText;
       if (!response.ok) {
-        return { accepted: false, status: `http_${response.status}`, message: `Provider rejected execution (${response.status})`, raw };
+        return { accepted:false, status:`http_${response.status}`, message:`Bookmaker rejected execution (${response.status})`, raw };
       }
       return {
         accepted: raw?.accepted === true || raw?.status === 'accepted' || raw?.status === 'placed' || raw?.betId != null,
@@ -65,10 +88,7 @@ function buildAdapter(route) {
 }
 
 export function registerProviderExecutionAdapters() {
-  for (const route of routes) {
-    const adapter = buildAdapter(route);
-    registerExecutionAdapter(route.slug, adapter);
-  }
+  for (const route of routes) registerExecutionAdapter(route.slug, buildAdapter(route));
   return routes.map(route => ({
     bookmaker: route.slug,
     provider: route.provider,
@@ -81,9 +101,12 @@ export function providerExecutionAdapterStatus() {
   return routes.map(route => ({
     bookmaker: route.slug,
     provider: route.provider,
+    envPrefix: route.prefix,
     configured: configured(route),
-    authorizationFlag: truthy(`${route.prefix}_EXECUTION_AUTHORIZED`),
+    contractVerified: truthy(`${route.prefix}_CONTRACT_VERIFIED`),
+    executionAuthorized: truthy(`${route.prefix}_EXECUTION_AUTHORIZED`),
     endpointConfigured: Boolean(env(`${route.prefix}_API_BASE_URL`) && env(`${route.prefix}_BET_PLACE_PATH`)),
-    accessTokenConfigured: Boolean(env(`${route.prefix}_ACCESS_TOKEN`))
+    accessTokenConfigured: Boolean(env(`${route.prefix}_ACCESS_TOKEN`)),
+    ready: configured(route)
   }));
 }
