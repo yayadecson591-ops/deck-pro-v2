@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { executionStrategy, executionStrategyMatrix, supportedChannels, isExecutionChannelVerified, executionResearchStatus } from './execution-strategies.js';
 import { getExecutionAdapter, executionAdapterStatus, listExecutionAdapters } from './execution-adapters.js';
 import { providerStatus, providerForBookmaker } from './provider-integrations.js';
+import { bookmakerOnboardingStatus, bookmakerOnboardingFor } from './bookmaker-onboarding.js';
 
 const EXECUTION_TIMEOUT_MS=Number(process.env.EXECUTION_TIMEOUT_MS||8000);
 const configured=(process.env.BOOKMAKER_EXECUTION_BOOKS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
@@ -16,7 +17,8 @@ const bookmakerDefinitions = [
 ];
 const adapters=Object.fromEntries(bookmakerDefinitions.map(([slug,name,channels])=>[slug,{slug,name,channels}]));
 
-export function executionCapabilities(){return Object.values(adapters).map(a=>{const verified=supportedChannels().filter(channel=>verifiedRoute(a.slug,channel));const provider=providerForBookmaker(a.slug);return{bookmaker:a.slug,name:a.name,enabled:enabled(a.slug),configuredChannels:a.channels.filter(channel=>Boolean(env(`${a.slug.toUpperCase().replace(/[^A-Z0-9]/g,'_')}_${channel.toUpperCase()}_URL`))),userTokenConfigured:tokenEnabled(a.slug),strategy:executionStrategy(a.slug),verifiedFallbackChannels:verified,provider:provider?{id:provider[0],name:provider[1].name,scope:provider[1].scope,status:provider[1].status}:null,adapter:executionAdapterStatus(a.slug),executable:Boolean(enabled(a.slug)&&verified.length&&getExecutionAdapter(a.slug)?.authorized&&getExecutionAdapter(a.slug)?.documented),status:verified.length?'VERIFIED_ROUTE_AVAILABLE':'RESEARCH_OR_AUTHORIZATION_REQUIRED'}})}
+export function executionCapabilities(){return Object.values(adapters).map(a=>{const verified=supportedChannels().filter(channel=>verifiedRoute(a.slug,channel));const provider=providerForBookmaker(a.slug);const onboarding=bookmakerOnboardingFor(a.slug);const adapter=executionAdapterStatus(a.slug);return{bookmaker:a.slug,name:a.name,enabled:enabled(a.slug),configuredChannels:a.channels.filter(channel=>Boolean(env(`${a.slug.toUpperCase().replace(/[^A-Z0-9]/g,'_')}_${channel.toUpperCase()}_URL`))),userTokenConfigured:tokenEnabled(a.slug),strategy:executionStrategy(a.slug),verifiedFallbackChannels:verified,provider:provider?{id:provider[0],name:provider[1].name,scope:provider[1].scope,status:provider[1].status}:null,onboarding:onboarding?{route:onboarding.route,status:onboarding.status,provider:onboarding.provider||null,contact:onboarding.contact||null,configured:onboarding.credentials.every(key=>Boolean(env(key)))}:null,adapter,executable:Boolean(enabled(a.slug)&&verified.length&&adapter?.authorized&&adapter?.documented),status:verified.length?'VERIFIED_ROUTE_AVAILABLE':'RESEARCH_OR_AUTHORIZATION_REQUIRED'}})}
+export function executionOnboarding(){return bookmakerOnboardingStatus()}
 export function executionProviders(){return providerStatus()}
 export function executionStrategies(){return executionStrategyMatrix()}
 export function executionResearch(){return executionResearchStatus()}
