@@ -1,5 +1,6 @@
 import express from 'express';
-import { createUser, authenticateUser, getSession, saveBookmakerToken, saveBookmakerCredentials, listBookmakerConnections, getBookmakerConnection, setBookmakerAutoBet, deleteBookmakerConnection, recordConnectionEvent, dbStatus } from './db/index.js';
+import crypto from 'crypto';
+import { createUser, authenticateUser, getSession, ensureOwnerUser, saveBookmakerToken, saveBookmakerCredentials, listBookmakerConnections, getBookmakerConnection, setBookmakerAutoBet, deleteBookmakerConnection, recordConnectionEvent, dbStatus } from './db/index.js';
 import { listExecutionHistory, historyStatus } from './history-store.js';
 import { executionStrategy } from './execution-strategies.js';
 import { autoStakeStatus, setAutoStake, assertAutoStakeAllowed, clearAutoStake } from './auto-stake.js';
@@ -9,8 +10,12 @@ import { pronoProductStatus, validateAutoWindow, validateManualHorizon } from '.
 const router=express.Router();
 const BOOKMAKERS=['sportybet','betmomo','premierbet','betpawa.cm','1xbet','1xwin','afropari','betclic','yellowbet','22bet','pmuc','supergooal','betwinner','melbet','bettomax','paripesa','onebet','betsson'];
 const CHANNELS=['official_api','user_credentials','user_token','partner_sdk','browser_rpa','android_rpa','deeplink_coupon','authorized_gateway'];
+const OWNER_SALT=String(process.env.OWNER_CODE_SALT||'deck-pro-owner-v1');
+const OWNER_HASH=String(process.env.OWNER_CODE_HASH||'').trim();
+const OWNER_SECRET=String(process.env.OWNER_TOKEN_SECRET||'').trim();
 function bearer(req){return String(req.headers.authorization||'').replace(/^Bearer\s+/i,'').trim()}
-async function userAuth(req,res,next){try{const session=await getSession(bearer(req));if(!session)return res.status(401).json({ok:false,error:'Session utilisateur invalide ou expirée.',code:'USER_SESSION_INVALID'});req.user=session;next()}catch(e){return res.status(e?.status||503).json({ok:false,error:e?.message||'Base de données indisponible.',code:e?.code||'DATABASE_ERROR'})}}
+function ownerIdentity(raw){try{if(!OWNER_SECRET||!raw)return null;const [p,s]=String(raw).split('.');if(!p||!s)return null;const expected=crypto.createHmac('sha256',OWNER_SECRET).update(p).digest('base64url');if(s!==expected)return null;const payload=JSON.parse(Buffer.from(p,'base64url').toString());if(payload.role!=='owner'||Number(payload.exp)<=Date.now())return null;return payload}catch{return null}}
+async function userAuth(req,res,next){try{const raw=bearer(req);const session=await getSession(raw);if(session){req.user=session;return next()}const owner=ownerIdentity(raw);if(owner){const ownerKey=OWNER_HASH||crypto.createHash('sha256').update(OWNER_SALT+String(owner.did||'owner')).digest('hex');const user=await ensureOwnerUser(ownerKey);req.user={user_id:user.id,username:user.username,expires_at:new Date(Date.now()+3600000)};return next()}return res.status(401).json({ok:false,error:'Session utilisateur invalide ou expirée.',code:'USER_SESSION_INVALID'})}catch(e){return res.status(e?.status||503).json({ok:false,error:e?.message||'Base de données indisponible.',code:e?.code||'DATABASE_ERROR'})}}
 function fail(res,e){return res.status(e?.status||503).json({ok:false,error:e?.message||'Erreur serveur.',code:e?.code||'ACCOUNT_API_ERROR'})}
 function connectionView(row){const strategy=executionStrategy(row.bookmaker_slug);return{...row,hasCredentials:true,execution:{preferred:strategy?.preferred||null,channels:strategy?.channels||{},executionEnabled:Boolean(strategy?.preferred&&strategy?.channels?.[strategy.preferred]?.enabled&&strategy?.channels?.[strategy.preferred]?.verified)}}}
 router.get('/api/account/status',(req,res)=>res.json({ok:true,db:dbStatus(),history:historyStatus(),bookmakers:BOOKMAKERS,prono:pronoEngineStatus(),product:pronoProductStatus()}));
