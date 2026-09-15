@@ -3,7 +3,8 @@ import cors from 'cors';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import accountRouter from './account-api.js';
+import accountRouter, { userAuth } from './account-api.js';
+import { resolveBookmakerAccess } from './execution-access.js';
 import { executionCapabilities, executionOnboarding, executionProviderAdapters, validateExecutionPair, validateAuthorizedOrder, placeAuthorizedBet } from './execution.js';
 import { executionEngineStatus, executeTwoLegTransaction, getExecutionTransaction, reconcileExecutionTransaction } from './execution-engine.js';
 import { relayRole, relayExecutionAllowed, relayStatus } from './relay.js';
@@ -36,13 +37,29 @@ function apiFail(res,e){const msg=typeof e?.message==='string'?e.message:(typeof
 function bookmakerLogo(x){return x?.logo||x?.logoUrl||x?.logoURL||x?.image||x?.icon||x?.iconUrl||null}
 function normalizeLeg(l){return{bookmaker:String(l.slug||l.bookmaker||''),price:Number(l.price??l.odds),outcome:String(l.outcome||l.selection||''),market:String(l.market||l.marketName||''),line:l.line??null,fixtureId:String(l.fixtureId||l.eventId||''),eventId:String(l.eventId||l.fixtureId||'')}}
 function buildArbitrage(legs,total,step=0.01){const clean=legs.map(normalizeLeg).filter(l=>l.bookmaker&&Number.isFinite(l.price)&&l.price>1&&l.outcome);if(clean.length<2)return{valid:false,reason:'Il faut au moins deux sélections valides.'};const eventIds=[...new Set(clean.map(x=>x.eventId).filter(Boolean))];const markets=[...new Set(clean.map(x=>`${x.market}|${x.line??''}`))];if(eventIds.length!==1||markets.length!==1)return{valid:false,reason:'Marchés non comparables.'};const outcomes=[...new Set(clean.map(x=>x.outcome.toLowerCase()))];if(outcomes.length!==clean.length)return{valid:false,reason:'Sélections dupliquées.'};const inv=clean.reduce((s,l)=>s+(1/l.price),0);if(!(inv<1))return{valid:false,reason:'Pas d arbitrage sans perte.',impliedProbability:inv};const raw=clean.map(l=>total*(1/l.price)/inv);const stakes=raw.map(x=>Math.round(x/step)*step);const sum=stakes.reduce((a,b)=>a+b,0);if(Math.abs(sum-total)>1e-9){const delta=total-sum;const idx=stakes.reduce((best,_,i)=>raw[i]>raw[best]?i:best,0);stakes[idx]=Math.max(0,Math.round((stakes[idx]+delta)/step)*step)}const returns=clean.map((l,i)=>stakes[i]*l.price);const minReturn=Math.min(...returns);const profit=minReturn-total;return{valid:profit>=-1e-9,impliedProbability:inv,marginPct:(1-inv)*100,totalStake:total,minimumReturn:minReturn,profit,yieldPct:(profit/total)*100,legs:clean.map((l,i)=>({...l,stake:stakes[i],grossReturn:returns[i]})),rounded:true,step}}
-app.get('/health',async(req,res)=>res.json({ok:true,service:'deck-pro-server',version:'V129',status:'online',uptimeSec:Math.floor(process.uptime()),relay:await relayStatus(),executionEngine:executionEngineStatus()}));
-app.get('/api/system/relay-status',async(req,res)=>res.json({ok:true,version:'V129',relay:await relayStatus()}));
+async function hydrateExecutionLegs(userId,legs,autoStake=false){
+  if(!Array.isArray(legs)||legs.length!==2)return{ok:false,code:'EXACTLY_TWO_BOOKMAKERS_REQUIRED'};
+  const hydrated=[];
+  for(const leg of legs){
+    const connectionId=String(leg?.connectionId||'').trim();
+    if(!connectionId)return{ok:false,code:'BOOKMAKER_CONNECTION_REQUIRED',bookmaker:String(leg?.bookmaker||'')};
+    const access=await resolveBookmakerAccess({userId,connectionId,bookmaker:leg.bookmaker});
+    if(!access.ok)return access;
+    if(autoStake&&!access.autoBetEnabled)return{ok:false,code:'BOOKMAKER_AUTO_BET_DISABLED',bookmaker:access.bookmaker,connectionId:access.connectionId};
+    const channel=String(leg.channel||access.channel||'').trim();
+    const next={...leg,channel,connectionId:access.connectionId};
+    if(channel==='user_token')next.userToken=access.token||'';
+    hydrated.push(next);
+  }
+  return{ok:true,legs:hydrated};
+}
+app.get('/health',async(req,res)=>res.json({ok:true,service:'deck-pro-server',version:'V130',status:'online',uptimeSec:Math.floor(process.uptime()),relay:await relayStatus(),executionEngine:executionEngineStatus()}));
+app.get('/api/system/relay-status',async(req,res)=>res.json({ok:true,version:'V130',relay:await relayStatus()}));
 app.get('/api/system/readiness',(req,res)=>{const writable=(()=>{try{const f=path.join(DATA_DIR,'.probe');fs.writeFileSync(f,'ok');fs.unlinkSync(f);return true}catch{return false}})();const checks={oddsPapi:!!API_KEY,ownerAuth:!!effectiveHash&&!!effectiveSecret,dataWritable:writable,nodeVersion:Number(process.versions.node.split('.')[0])>=20};const ready=checks.oddsPapi&&checks.ownerAuth&&checks.dataWritable&&checks.nodeVersion;res.status(ready?200:503).json({ok:ready,ready,checks,bookmakers:BOOKMAKERS})});
 app.post('/api/activate',(req,res)=>{const code=String(req.body?.code||'').trim().toUpperCase();const deviceId=String(req.body?.deviceId||'').trim();if(!effectiveHash||!effectiveSecret)return res.status(503).json({ok:false,error:'Activation propriétaire non configurée.'});if(!/^\d{4}$/.test(code)||hash(code)!==effectiveHash)return res.status(401).json({ok:false,error:'Code propriétaire incorrect.'});if(!deviceId)return res.status(400).json({ok:false,error:'Identifiant appareil requis.'});res.json({ok:true,role:'owner',deviceId,token:token(deviceId)})});
 app.get('/api/activate/verify',auth,(req,res)=>res.json({ok:true,role:'owner'}));
-app.get('/api/system/config-check',auth,(req,res)=>res.json({ok:true,checks:{oddsPapi:!!API_KEY,ownerAuth:!!effectiveHash&&!!effectiveSecret},version:'V129'}));
-app.get('/api/execution/capabilities',auth,(req,res)=>res.json({ok:true,version:'V129',capabilities:executionCapabilities()}));
+app.get('/api/system/config-check',auth,(req,res)=>res.json({ok:true,checks:{oddsPapi:!!API_KEY,ownerAuth:!!effectiveHash&&!!effectiveSecret},version:'V130'}));
+app.get('/api/execution/capabilities',auth,(req,res)=>res.json({ok:true,version:'V130',capabilities:executionCapabilities()}));
 app.get('/api/execution/onboarding',auth,(req,res)=>res.json({ok:true,bookmakers:executionOnboarding()}));
 app.get('/api/execution/provider-adapters',auth,(req,res)=>res.json({ok:true,adapters:executionProviderAdapters()}));
 app.get('/api/execution/engine-status',auth,(req,res)=>res.json({ok:true,engine:executionEngineStatus()}));
@@ -50,8 +67,8 @@ app.get('/api/execution/transaction/:idempotencyKey',auth,(req,res)=>{const tran
 app.post('/api/execution/transaction/:idempotencyKey/reconcile',auth,(req,res)=>{const result=reconcileExecutionTransaction(req.params.idempotencyKey);res.status(result.ok?200:404).json(result)});
 app.post('/api/execution/validate-pair',auth,(req,res)=>{const result=validateExecutionPair(req.body?.legs);res.status(result.ok?200:422).json({ok:result.ok,validation:result})});
 app.post('/api/execution/preflight',auth,(req,res)=>{const body=req.body||{};const pair=validateExecutionPair(body.legs);if(!pair.ok)return res.status(422).json({ok:false,validation:pair});const checks=(body.legs||[]).map(leg=>validateAuthorizedOrder(leg));res.status(checks.every(x=>x.ok)?200:422).json({ok:checks.every(x=>x.ok),pair,checks})});
-app.post('/api/execution/place-two',auth,async(req,res)=>{if(!relayExecutionAllowed())return res.status(503).json({ok:false,error:'Relais en attente.'});const body=req.body||{};const result=await executeTwoLegTransaction({legs:body.legs,idempotencyKey:body.idempotencyKey,requestId:body.requestId,preflightContext:body.preflightContext||{}});res.status(result.ok?200:409).json(result)});
-app.post('/api/execution/place-authorized',auth,async(req,res)=>{if(!relayExecutionAllowed())return res.status(503).json({ok:false,error:'Relais en attente.'});const body=req.body||{};const pair=validateExecutionPair(body.legs);if(!pair.ok)return res.status(422).json({ok:false,validation:pair});const results=[];for(const leg of body.legs||[]){results.push(await placeAuthorizedBet(leg))}res.status(results.every(x=>x.ok)?200:409).json({ok:results.every(x=>x.ok),results})});
+app.post('/api/execution/place-two',userAuth,async(req,res)=>{if(!relayExecutionAllowed())return res.status(503).json({ok:false,error:'Relais en attente.'});try{const body=req.body||{};const autoStake=body.autoStake===true;const hydrated=await hydrateExecutionLegs(req.user.user_id,body.legs,autoStake);if(!hydrated.ok)return res.status(422).json({ok:false,stage:'connection',...hydrated});const result=await executeTwoLegTransaction({userId:req.user.user_id,autoStake,legs:hydrated.legs,idempotencyKey:body.idempotencyKey,requestId:body.requestId,preflightContext:body.preflightContext||{},decisionContext:{...(body.decisionContext||{}),userAuthenticated:true,userId:req.user.user_id,autoStakeEnabled:autoStake,confirmationValid:body.decisionContext?.confirmationValid??autoStake}});res.status(result.ok?200:409).json(result)}catch(e){return apiFail(res,e)}});
+app.post('/api/execution/place-authorized',userAuth,async(req,res)=>{if(!relayExecutionAllowed())return res.status(503).json({ok:false,error:'Relais en attente.'});try{const body=req.body||{};const hydrated=await hydrateExecutionLegs(req.user.user_id,body.legs,false);if(!hydrated.ok)return res.status(422).json({ok:false,stage:'connection',...hydrated});const results=[];for(const leg of hydrated.legs){results.push(await placeAuthorizedBet(leg))}res.status(results.every(x=>x.ok)?200:409).json({ok:results.every(x=>x.ok),results})}catch(e){return apiFail(res,e)}});
 app.get('/api/sports',async(req,res)=>{try{res.json({ok:true,data:await oddsPapi('/sports')})}catch(e){apiFail(res,e)}});
 app.get('/api/fixtures',async(req,res)=>{try{const sportId=String(req.query.sportId||'10');const now=new Date();const from=req.query.from||now.toISOString();const to=req.query.to||new Date(now.getTime()+48*3600000).toISOString();const data=await oddsPapi('/fixtures',{sportId,from,to,hasOdds:'true'});res.json({ok:true,sportId,from,to,count:Array.isArray(data)?data.length:0,data:Array.isArray(data)?data:[]})}catch(e){apiFail(res,e)}});
 app.get('/api/radar',async(req,res)=>{try{const now=new Date();const from=now.toISOString();const to=new Date(now.getTime()+48*3600000).toISOString();const ids=String(req.query.sports||'10,11').split(',').map(x=>x.trim()).filter(Boolean);const parts=await Promise.all(ids.map(async sportId=>{const data=await oddsPapi('/fixtures',{sportId,from,to,hasOdds:'true'});return Array.isArray(data)?data:[]}));const data=parts.flat().filter(x=>x?.hasOdds).sort((a,b)=>new Date(a.startTime||0)-new Date(b.startTime||0));res.json({ok:true,from,to,count:data.length,sports:ids,data})}catch(e){apiFail(res,e)}});
@@ -59,4 +76,4 @@ app.get('/api/odds',async(req,res)=>{try{const fixtureId=String(req.query.fixtur
 app.post('/api/arbitrage/stake-plan-constrained',auth,(req,res)=>{const body=req.body||{};const total=Number(body.totalStake??body.stake);const legs=Array.isArray((body.opportunity||body).legs)?(body.opportunity||body).legs:[];if(!Number.isFinite(total)||total<=0)return res.status(400).json({ok:false,error:'Mise totale invalide.'});const result=buildArbitrage(legs,total,Number(body.roundingStep||0.01));res.status(result.valid?200:422).json({ok:result.valid,plan:result})});
 app.post('/api/arbitrage/validate-opportunity',auth,(req,res)=>{const body=req.body||{};const result=buildArbitrage(Array.isArray(body.legs)?body.legs:[],Number(body.totalStake??body.stake??100),Number(body.roundingStep||0.01));res.status(result.valid?200:422).json({ok:result.valid,arbitrage:result})});
 app.get('/api/bookmakers/coverage',async(req,res)=>{try{const available=API_KEY?await oddsPapi('/bookmakers'):[];const map=new Map((Array.isArray(available)?available:[]).map(x=>[String(x.slug),x]));res.json({ok:true,configured:BOOKMAKERS.length,rows:BOOKMAKERS.map(slug=>{const x=map.get(slug);return{configuredSlug:slug,found:!!x,status:x?'SOURCE_OK':'NOT_FOUND',name:x?.bookmakerName||x?.name||null,logo:bookmakerLogo(x),liveOdds:x?.liveOdds??null}})})}catch(e){apiFail(res,e)}});
-app.listen(PORT,'0.0.0.0',()=>console.log(`Deck Pro V129 ${relayRole()} server listening on :${PORT}`));
+app.listen(PORT,'0.0.0.0',()=>console.log(`Deck Pro V130 ${relayRole()} server listening on :${PORT}`));
