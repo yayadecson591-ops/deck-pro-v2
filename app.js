@@ -49,7 +49,7 @@ function esc(s) {
     try { s = s.message || s.error || JSON.stringify(s); } catch (e) { s = 'Erreur'; }
   }
   return String(s ?? '').replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;'
   }[c]));
 }
 
@@ -123,27 +123,35 @@ document.querySelectorAll('.nav button, .mobile-nav button').forEach(b => {
 
 async function health() {
   try {
-    const d = await fetch(API + '/health').then(r => r.json());
-    let dbOk = true;
+    const d = await fetch(API + '/health').then(r => r.json()).catch(() => null);
+    let operational = false;
+    let mode = '';
     try {
-      let st = null;
-      try { st = await fetch(API + '/api/system/runtime').then(r => r.json()); } catch (_) {}
-      if (!st) { try { st = await fetch(API + '/api/account/status').then(r => r.json()); } catch (_) {} }
-      dbOk = !!(st && st.database && st.database.configured) || !!(st && st.db && st.db.configured);
-    } catch (_) { dbOk = false; }
-    if (dbOk) {
-      if ($('sideStatus')) $('sideStatus').textContent = 'Système actif';
-      if ($('sideDot')) { $('sideDot').className = 'status-dot'; }
-      if ($('pill')) { $('pill').textContent = 'SYSTÈME ACTIF'; $('pill').className = 'pill'; }
-      if ($('statSystem')) $('statSystem').textContent = 'ACTIF';
-      if ($('statSystemSub')) $('statSystemSub').textContent = 'serveur + base';
-    } else {
-      if ($('sideStatus')) $('sideStatus').textContent = 'Base non configurée';
-      if ($('sideDot')) { $('sideDot').className = 'status-dot warn'; }
-      if ($('pill')) { $('pill').textContent = 'BASE OFF'; $('pill').className = 'pill off'; }
-      if ($('statSystem')) $('statSystem').textContent = 'BASE';
-      if ($('statSystemSub')) $('statSystemSub').textContent = 'DATABASE_URL manquant';
+      const ready = await fetch(API + '/api/system/readiness').then(r => r.json());
+      operational = !!(ready && (ready.operational || (ready.checks && ready.checks.database && ready.checks.oddsPapi)));
+      mode = (ready && ready.db && ready.db.mode) || '';
+    } catch (_) {
+      try {
+        const st = await fetch(API + '/api/system/runtime').then(r => r.json());
+        operational = !!(st && st.database && st.database.configured);
+        mode = (st && st.database && st.database.mode) || '';
+      } catch (__) {}
     }
+    if (operational || (d && d.ok)) {
+      if ($('sideStatus')) $('sideStatus').textContent = operational ? 'Système actif' : 'Serveur en ligne';
+      if ($('sideDot')) { $('sideDot').className = 'status-dot'; }
+      if ($('pill')) {
+        $('pill').textContent = operational ? 'SYSTÈME ACTIF' : 'EN LIGNE';
+        $('pill').className = 'pill';
+      }
+      if ($('statSystem')) $('statSystem').textContent = 'ACTIF';
+      if ($('statSystemSub')) $('statSystemSub').textContent = mode ? ('stockage ' + mode) : 'en ligne';
+      return true;
+    }
+    if ($('sideStatus')) $('sideStatus').textContent = 'Partiel';
+    if ($('sideDot')) { $('sideDot').className = 'status-dot warn'; }
+    if ($('pill')) { $('pill').textContent = 'PARTIEL'; $('pill').className = 'pill off'; }
+    if ($('statSystem')) $('statSystem').textContent = '—';
     return true;
   } catch {
     if ($('sideStatus')) $('sideStatus').textContent = 'Serveur indisponible';
@@ -244,12 +252,17 @@ async function loadBooks() {
   let banner = '';
   if (connErr) {
     const msg = String(connErr.message || connErr);
+    const isSession = /session|Session|401|invalide|expir/i.test(msg) || !tok();
     const isDb = /DATABASE/i.test(msg);
-    banner = `<div class="notice ${isDb ? 'warn' : 'bad'}" style="grid-column:1/-1;margin-bottom:8px">${esc(
-      isDb
-        ? 'Base de données non branchée (DATABASE_URL). Les connexions persistantes ne peuvent pas être enregistrées tant que Postgres n’est pas lié sur Render.'
-        : msg
+    banner = `<div class="notice ${isSession || isDb ? 'warn' : 'bad'}" style="grid-column:1/-1;margin-bottom:8px">${esc(
+      isSession
+        ? 'Session requise. Allez dans Paramètres, saisissez le code propriétaire, puis « Ouvrir session ». Ensuite reconnectez vos bookmakers une seule fois — la connexion reste mémorisée.'
+        : (isDb
+          ? 'Stockage indisponible. Vérifiez le serveur.'
+          : msg)
     )}</div>`;
+  } else if (!tok()) {
+    banner = `<div class="notice warn" style="grid-column:1/-1;margin-bottom:8px">Ouvrez d’abord la session propriétaire (Paramètres) pour enregistrer et afficher vos comptes bookmakers.</div>`;
   }
   grid.innerHTML = banner + BOOKS.map(bookCard).join('');
   if ($('statBooks')) $('statBooks').textContent = connectionsCache.length;
@@ -425,7 +438,9 @@ async function loadHome() {
   if ($('statBooks')) $('statBooks').textContent = connectionsCache.length;
   const preview = $('homeBooksPreview');
   if (preview) {
-    if (!connectionsCache.length) {
+    if (!tok()) {
+      preview.innerHTML = '<div class="empty">Session fermée. <button class="btn sm primary" onclick="tab(\'settings\')">Ouvrir session</button></div>';
+    } else if (!connectionsCache.length) {
       preview.innerHTML = '<div class="empty">Aucun compte connecté. <button class="btn sm primary" onclick="tab(\'books\')">Connecter</button></div>';
     } else {
       preview.innerHTML = connectionsCache.slice(0, 6).map(c => {
