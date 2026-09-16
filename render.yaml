@@ -38,3 +38,9 @@ services:
         value: 10000
       - key: DATA_DIR
         value: /tmp/deck-pro-data
+      - key: DATABASE_URL
+        fromDatabase:
+          name: deck-pro-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: "true"
