@@ -124,11 +124,24 @@ document.querySelectorAll('.nav button, .mobile-nav button').forEach(b => {
 async function health() {
   try {
     const d = await fetch(API + '/health').then(r => r.json());
-    if ($('sideStatus')) $('sideStatus').textContent = 'Système actif';
-    if ($('sideDot')) { $('sideDot').className = 'status-dot'; }
-    if ($('pill')) { $('pill').textContent = 'SYSTÈME ACTIF'; $('pill').className = 'pill'; }
-    if ($('statSystem')) $('statSystem').textContent = 'ACTIF';
-    if ($('statSystemSub')) $('statSystemSub').textContent = d.service || 'en ligne';
+    let dbOk = true;
+    try {
+      const st = await fetch(API + '/api/account/status').then(r => r.json());
+      dbOk = !!(st.db && st.db.configured);
+    } catch (_) { dbOk = false; }
+    if (dbOk) {
+      if ($('sideStatus')) $('sideStatus').textContent = 'Système actif';
+      if ($('sideDot')) { $('sideDot').className = 'status-dot'; }
+      if ($('pill')) { $('pill').textContent = 'SYSTÈME ACTIF'; $('pill').className = 'pill'; }
+      if ($('statSystem')) $('statSystem').textContent = 'ACTIF';
+      if ($('statSystemSub')) $('statSystemSub').textContent = 'serveur + base';
+    } else {
+      if ($('sideStatus')) $('sideStatus').textContent = 'Base non configurée';
+      if ($('sideDot')) { $('sideDot').className = 'status-dot warn'; }
+      if ($('pill')) { $('pill').textContent = 'BASE OFF'; $('pill').className = 'pill off'; }
+      if ($('statSystem')) $('statSystem').textContent = 'BASE';
+      if ($('statSystemSub')) $('statSystemSub').textContent = 'DATABASE_URL manquant';
+    }
     return true;
   } catch {
     if ($('sideStatus')) $('sideStatus').textContent = 'Serveur indisponible';
