@@ -8,7 +8,7 @@ services:
   - type: web
     name: deck-pro-web
     runtime: static
-    buildCommand: mkdir -p public && cp index.html public/index.html
+    buildCommand: mkdir -p public && cp index.html app.js sw.js manifest.webmanifest public/ 2>/dev/null; true
     staticPublishPath: ./public
     autoDeployTrigger: commit
     headers:
@@ -38,21 +38,3 @@ services:
         value: 10000
       - key: DATA_DIR
         value: /tmp/deck-pro-data
-      - key: ODDSPAPI_API_KEY
-        sync: false
-      - key: OWNER_CODE_SALT
-        generateValue: true
-      - key: OWNER_CODE_HASH
-        sync: false
-      - key: OWNER_TOKEN_SECRET
-        generateValue: true
-      - key: DATABASE_SSL
-        value: "false"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: deck-pro-db
-          property: connectionString
-      - key: ALLOWED_ORIGINS
-        value: https://deck-pro-web.onrender.com
-      - key: BOOKMAKERS
-        value: sportybet,betmomo,premierbet,betpawa.cm,1xbet,1xwin,afropari
