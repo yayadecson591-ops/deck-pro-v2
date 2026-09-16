@@ -49,7 +49,7 @@ function esc(s) {
     try { s = s.message || s.error || JSON.stringify(s); } catch (e) { s = 'Erreur'; }
   }
   return String(s ?? '').replace(/[&<>"']/g, c => ({
-    '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;'
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
 }
 
@@ -126,8 +126,10 @@ async function health() {
     const d = await fetch(API + '/health').then(r => r.json());
     let dbOk = true;
     try {
-      const st = await fetch(API + '/api/account/status').then(r => r.json());
-      dbOk = !!(st.db && st.db.configured);
+      let st = null;
+      try { st = await fetch(API + '/api/system/runtime').then(r => r.json()); } catch (_) {}
+      if (!st) { try { st = await fetch(API + '/api/account/status').then(r => r.json()); } catch (_) {} }
+      dbOk = !!(st && st.database && st.database.configured) || !!(st && st.db && st.db.configured);
     } catch (_) { dbOk = false; }
     if (dbOk) {
       if ($('sideStatus')) $('sideStatus').textContent = 'Système actif';
@@ -171,7 +173,7 @@ async function loadConnections() {
     return connectionsCache;
   } catch (e) {
     connectionsCache = [];
-    return [];
+    throw e;
   }
 }
 
@@ -234,12 +236,23 @@ function bookCard(slug) {
 }
 
 async function loadBooks() {
-  await Promise.all([loadCoverage(), loadConnections()]);
+  let connErr = null;
+  try { await loadCoverage(); } catch (e) {}
+  try { await loadConnections(); } catch (e) { connErr = e; connectionsCache = []; }
   const grid = $('bookGrid');
   if (!grid) return;
-  grid.innerHTML = BOOKS.map(bookCard).join('');
-  const connected = connectionsCache.length;
-  if ($('statBooks')) $('statBooks').textContent = connected;
+  let banner = '';
+  if (connErr) {
+    const msg = String(connErr.message || connErr);
+    const isDb = /DATABASE/i.test(msg);
+    banner = `<div class="notice ${isDb ? 'warn' : 'bad'}" style="grid-column:1/-1;margin-bottom:8px">${esc(
+      isDb
+        ? 'Base de données non branchée (DATABASE_URL). Les connexions persistantes ne peuvent pas être enregistrées tant que Postgres n’est pas lié sur Render.'
+        : msg
+    )}</div>`;
+  }
+  grid.innerHTML = banner + BOOKS.map(bookCard).join('');
+  if ($('statBooks')) $('statBooks').textContent = connectionsCache.length;
 }
 
 function openConnectModal(prefillSlug) {
@@ -408,7 +421,7 @@ function toggleAutopilot() {
 
 async function loadHome() {
   await health();
-  await loadConnections();
+  try { await loadConnections(); } catch (_) { connectionsCache = []; }
   if ($('statBooks')) $('statBooks').textContent = connectionsCache.length;
   const preview = $('homeBooksPreview');
   if (preview) {
@@ -575,13 +588,18 @@ async function loadPre() {
 async function loadOpps() {
   const box = $('oppsList');
   if (!box) return;
+  box.innerHTML = '<div class="empty">Recherche d’opportunités réelles…</div>';
   try {
-    const d = await api('/api/arbitrage/opportunities').catch(() => null);
-    if (d && Array.isArray(d.data || d.opportunities) && (d.data || d.opportunities).length) {
-      const rows = d.data || d.opportunities;
+    let d = null;
+    try { d = await api('/api/arbitrage/opportunities'); } catch (_) { d = null; }
+    const rows = d ? (d.data || d.opportunities || []) : [];
+    if (Array.isArray(rows) && rows.length) {
       box.innerHTML = rows.map(o => {
         const yieldPct = o.yield != null ? (Number(o.yield) * 100).toFixed(2) + '%' : '—';
         const guaranteed = o.guaranteed || o.fullCoverage ? 'GARANTIE' : 'Non garanti';
+        const legs = Array.isArray(o.legs) ? o.legs.map(l =>
+          `${esc(l.bookmaker || l.slug || '')} ${esc(l.outcome || l.selection || '')} @ ${esc(l.price || l.odds || '')}`
+        ).join(' · ') : '';
         return `<div class="match-card">
           <div class="league">${esc(o.sport || '')} · ${esc(o.market || '')}</div>
           <div class="teams">${esc(o.event || o.name || 'Opportunité')}</div>
@@ -590,13 +608,22 @@ async function loadOpps() {
             <span>${esc(guaranteed)}</span>
             <span class="freshness ${o.fresh ? 'ok' : 'warn'}">${o.fresh ? '🟢 Fraîche' : '🟠 À vérifier'}</span>
           </div>
+          ${legs ? `<div style="margin-top:8px;font-size:12px;color:var(--muted)">${legs}</div>` : ''}
         </div>`;
       }).join('');
-    } else {
-      box.innerHTML = '<div class="empty">Aucune opportunité réelle disponible pour le moment. Aucune donnée inventée.</div>';
+      return;
     }
-  } catch {
-    box.innerHTML = '<div class="empty">Aucune opportunité réelle disponible pour le moment. Aucune donnée inventée.</div>';
+    try {
+      const r = await api('/api/radar');
+      const n = Array.isArray(r.data) ? r.data.length : 0;
+      box.innerHTML = n
+        ? `<div class="notice info">${n} fixture(s) radar disponibles. Aucune surebet validée par le moteur pour l’instant (pas de donnée inventée).</div>`
+        : '<div class="empty">Aucune opportunité réelle disponible pour le moment. Aucune donnée inventée.</div>';
+    } catch (e) {
+      box.innerHTML = `<div class="notice bad">${esc(e.message || 'Source cotes indisponible')}</div>`;
+    }
+  } catch (e) {
+    box.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`;
   }
 }
 
