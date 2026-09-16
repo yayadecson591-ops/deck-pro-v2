@@ -229,13 +229,11 @@
       <span id="sideStatus">Connexion…</span>
     </div>
   </aside>
-
   <main class="main">
     <header class="top">
       <div class="crumb">DECK PRO · <b id="page">TABLEAU DE BORD</b></div>
       <div class="pill" id="pill">…</div>
     </header>
-
     <div class="content">
       <section id="home" class="section show">
         <div class="hero">
@@ -266,7 +264,6 @@
           </div>
         </div>
       </section>
-
       <section id="books" class="section">
         <div class="hero">
           <div>
@@ -281,7 +278,6 @@
         </div>
         <div class="book-grid" id="bookGrid"><div class="empty">Chargement des bookmakers…</div></div>
       </section>
-
       <section id="opps" class="section">
         <div class="hero">
           <div>
@@ -293,7 +289,6 @@
         </div>
         <div id="oppsList" class="empty">Aucune opportunité réelle disponible pour le moment.</div>
       </section>
-
       <section id="radar" class="section">
         <div class="hero">
           <div>
@@ -306,7 +301,6 @@
         <div id="radarSports" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
         <div id="pronoList" class="empty">Chargement…</div>
       </section>
-
       <section id="live" class="section">
         <div class="hero">
           <div>
@@ -317,7 +311,6 @@
         </div>
         <div id="liveList" class="empty">Chargement…</div>
       </section>
-
       <section id="pre" class="section">
         <div class="hero">
           <div>
@@ -328,7 +321,6 @@
         </div>
         <div id="preList" class="empty">Chargement…</div>
       </section>
-
       <section id="autobet" class="section">
         <div class="hero">
           <div>
@@ -361,37 +353,32 @@
             <div class="pend">Couverture garantie</div>
             <div class="pend">Soldes disponibles</div>
           </div>
-          <div class="notice warn" id="autoMsg" style="margin-top:10px">Mise automatique désactivée. Activez-la uniquement si les canaux d’exécution sont disponibles.</div>
+          <div class="notice warn" id="autoMsg" style="margin-top:10px">Mise automatique désactivée.</div>
         </div>
         <div class="panel" style="margin-top:14px">
           <h3>Mode Autopilote</h3>
-          <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
-            Surveillance continue côté serveur. Vous pouvez quitter l’application : les tâches autorisées continuent selon la configuration serveur.
-          </p>
+          <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Surveillance continue côté serveur.</p>
           <label class="toggle">
-            <input type="checkbox" id="autopilotToggle" onchange="toggleAutopilot()">
-            Autopilote ON
+            <input type="checkbox" id="autopilotToggle" onchange="toggleAutopilot()"> Autopilote ON
           </label>
           <div class="notice info" id="autopilotMsg" style="margin-top:10px">Autopilote désactivé.</div>
         </div>
         <div class="panel" style="margin-top:14px">
           <h3>Prévisualisation avant placement</h3>
-          <div id="prePlacePreview" class="empty">Aucune opportunité sélectionnée. Les vérifications s’affichent ici avant toute mise automatique.</div>
+          <div id="prePlacePreview" class="empty">Aucune opportunité sélectionnée.</div>
         </div>
       </section>
-
       <section id="journal" class="section">
         <div class="hero">
           <div>
             <div class="eyebrow">Historique</div>
             <h1>Journal</h1>
-            <p>Opérations détectées, validées, placées ou échouées — statut réel uniquement.</p>
+            <p>Statut réel uniquement — aucune simulation.</p>
           </div>
           <button class="btn secondary" onclick="loadHistory()">Actualiser</button>
         </div>
         <div class="panel" id="historyList"><div class="empty">Chargement…</div></div>
       </section>
-
       <section id="settings" class="section">
         <div class="hero">
           <div>
@@ -415,18 +402,13 @@
               <input id="ownerCode" type="password" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="off">
             </div>
             <button class="btn primary" style="margin-top:10px" onclick="softActivate()">Ouvrir session</button>
-            <div id="lockMsg" class="notice warn" style="margin-top:10px">Session optionnelle pour la lecture. Requise pour les opérations sensibles.</div>
+            <div id="lockMsg" class="notice warn" style="margin-top:10px">Session optionnelle pour la lecture.</div>
           </div>
-        </div>
-        <div class="panel" style="margin-top:14px">
-          <h3>Source de données</h3>
-          <div id="dataSourceMsg" class="notice info">OddsPapi (si configuré côté serveur). Aucune donnée fictive en production.</div>
         </div>
       </section>
     </div>
   </main>
 </div>
-
 <nav class="mobile-nav">
   <button data-tab="home" class="active"><span class="ico">⌂</span>Accueil</button>
   <button data-tab="books"><span class="ico">◎</span>Comptes</button>
@@ -434,26 +416,17 @@
   <button data-tab="autobet"><span class="ico">⚡</span>Auto</button>
   <button data-tab="journal"><span class="ico">☰</span>Journal</button>
 </nav>
-
 <div class="modal-backdrop hidden" id="connectModal">
   <div class="modal">
     <h2>Connecter un bookmaker</h2>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">
-      Les identifiants sont chiffrés et stockés côté serveur uniquement. Ils ne transitent jamais en clair dans l’interface après enregistrement.
-    </p>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Identifiants chiffrés côté serveur uniquement.</p>
     <div class="formgrid" style="grid-template-columns:1fr">
       <div class="field"><label>Bookmaker</label><select id="syncBook"></select></div>
-      <div class="field"><label>Nom du compte (optionnel)</label><input id="syncLabel" placeholder="Ex. principal"></div>
-      <div class="field">
-        <label>Canal</label>
-        <select id="syncChannel">
-          <option value="user_credentials">Identifiants</option>
-          <option value="user_token">Token</option>
-        </select>
-      </div>
-      <div class="field"><label>Identifiant / e-mail / téléphone</label><input id="syncIdentifier" autocomplete="username"></div>
+      <div class="field"><label>Nom du compte</label><input id="syncLabel" placeholder="Ex. principal"></div>
+      <div class="field"><label>Canal</label><select id="syncChannel"><option value="user_credentials">Identifiants</option><option value="user_token">Token</option></select></div>
+      <div class="field"><label>Identifiant</label><input id="syncIdentifier" autocomplete="username"></div>
       <div class="field"><label>Mot de passe</label><input id="syncPassword" type="password" autocomplete="current-password"></div>
-      <div class="field"><label>Token (si canal token)</label><input id="syncToken" type="password" autocomplete="off"></div>
+      <div class="field"><label>Token</label><input id="syncToken" type="password" autocomplete="off"></div>
     </div>
     <div id="syncMsg" class="notice warn" style="margin-top:12px">—</div>
     <div class="modal-actions">
@@ -462,7 +435,6 @@
     </div>
   </div>
 </div>
-
-<script src="app.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/app.js"></script>
 </body>
 </html>
