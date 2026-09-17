@@ -1,0 +1,26 @@
+.book-logo {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+  flex-shrink: 0;
+  letter-spacing: -0.02em;
+}
+.auto-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 4px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+.auto-badge.on {
+  background: #0f1a0a;
+  color: #b9ff4a;
+  border: 1px solid #2a4a1a;
+}
+.auto-badge.off {
+  background: #12161a;
+  color: #81909a;
+  border: 1px solid #1e2a34;
+}
