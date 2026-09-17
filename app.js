@@ -320,11 +320,17 @@ async function loadHistory() {
   } catch (e) { box.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; }
 }
 function matchCard(x) {
-  const league = x.league || x.competition || x.tournament || x.sport || '—';
-  const home = x.home || x.homeTeam || x.home_name || (x.teams && x.teams[0]) || '?';
-  const away = x.away || x.awayTeam || x.away_name || (x.teams && x.teams[1]) || '?';
-  const start = fmtTime(x.startTime || x.start || x.commence_time || x.time);
-  return `<div class="match-card"><div class="league">${esc(league)}</div><div class="teams">${esc(home)} — ${esc(away)}</div><div class="meta"><span>${esc(start)}</span></div></div>`;
+  const league = x.tournamentName || x.league || x.competition || x.tournament || x.categoryName || x.sportName || x.sport || '—';
+  const home = x.participant1Name || x.participant1ShortName || x.home || x.homeTeam || x.home_name || (x.teams && x.teams[0]) || '?';
+  const away = x.participant2Name || x.participant2ShortName || x.away || x.awayTeam || x.away_name || (x.teams && x.teams[1]) || '?';
+  const start = fmtTime(x.startTime || x.trueStartTime || x.start || x.commence_time || x.time);
+  const status = x.statusName || x.status || '';
+  const sport = x.sportName || '';
+  return `<div class="match-card">
+    <div class="league">${esc(sport)}${sport && league ? ' · ' : ''}${esc(league)}${status ? ' · ' + esc(status) : ''}</div>
+    <div class="teams">${esc(home)} — ${esc(away)}</div>
+    <div class="meta"><span>${esc(start)}</span>${x.hasOdds ? '<span class="freshness ok">Cotes dispo</span>' : ''}</div>
+  </div>`;
 }
 async function loadPronos() {
   const box = $('pronoList');
@@ -347,28 +353,56 @@ async function loadSports() {
   try {
     const d = await api('/api/sports');
     const sports = d.data || d.sports || [];
-    box.innerHTML = (Array.isArray(sports) ? sports : []).slice(0, 20).map(s => {
-      const name = typeof s === 'string' ? s : (s.name || s.sportName || s.id);
+    box.innerHTML = (Array.isArray(sports) ? sports : []).slice(0, 24).map(s => {
+      const name = typeof s === 'string' ? s : (s.sportName || s.name || s.slug || s.id);
       return `<button class="btn sm ghost">${esc(name)}</button>`;
     }).join('') || '<span class="empty">—</span>';
-  } catch (e) { box.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; }
+  } catch (e) {
+    box.innerHTML = /rate|429|limité/i.test(String(e.message||''))
+      ? '<div class="notice warn">Sports temporairement limités (quota).</div>'
+      : `<div class="notice bad">${esc(e.message)}</div>`;
+  }
 }
 async function loadLive() {
   const box = $('liveList');
   if (!box) return;
+  box.innerHTML = '<div class="empty">Chargement live…</div>';
   try {
-    const d = await api('/api/radar');
-    const rows = [].concat(d.data || []);
-    box.innerHTML = rows.length ? rows.slice(0, 30).map(matchCard).join('') : '<div class="empty">Aucune donnée réelle.</div>';
+    let rows = [];
+    try {
+      const d = await api('/api/live');
+      rows = [].concat(d.data || []);
+    } catch (_) {
+      const d = await api('/api/radar');
+      rows = [].concat(d.data || []).filter(x => {
+        const s = String(x.statusName || x.status || '').toLowerCase();
+        return /live|in play|in-play|1st|2nd|half|period|set|quarter/i.test(s) || (Number(x.statusId) > 0 && Number(x.statusId) < 100 && !/pre|not started|scheduled/i.test(s));
+      });
+    }
+    box.innerHTML = rows.length
+      ? rows.slice(0, 40).map(matchCard).join('')
+      : '<div class="empty">Aucun match live pour le moment (source réelle).</div>';
   } catch (e) { box.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; }
 }
 async function loadPre() {
   const box = $('preList');
   if (!box) return;
+  box.innerHTML = '<div class="empty">Chargement pré-match…</div>';
   try {
-    const d = await api('/api/radar');
-    const rows = [].concat(d.data || []);
-    box.innerHTML = rows.length ? rows.slice(0, 30).map(matchCard).join('') : '<div class="empty">Aucune donnée réelle.</div>';
+    let rows = [];
+    try {
+      const d = await api('/api/prematch');
+      rows = [].concat(d.data || []);
+    } catch (_) {
+      const d = await api('/api/radar');
+      rows = [].concat(d.data || []).filter(x => {
+        const s = String(x.statusName || x.status || '').toLowerCase();
+        return /pre|not started|scheduled|upcoming/i.test(s) || Number(x.statusId) === 0;
+      });
+    }
+    box.innerHTML = rows.length
+      ? rows.slice(0, 40).map(matchCard).join('')
+      : '<div class="empty">Aucun pré-match pour le moment (source réelle).</div>';
   } catch (e) { box.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; }
 }
 async function loadOpps() {
@@ -379,7 +413,7 @@ async function loadOpps() {
     const r = await api('/api/radar');
     const n = Array.isArray(r.data) ? r.data.length : 0;
     box.innerHTML = n
-      ? `<div class="notice info">${n} fixture(s) radar. Aucune surebet validée inventée — le moteur n’affiche que des opportunités calculées réelles.</div>`
+      ? `<div class="notice info">${n} fixture(s) radar. Aucune surebet inventée — uniquement des calculs réels quand disponibles.</div>`
       : '<div class="empty">Aucune opportunité réelle pour le moment.</div>';
   } catch (e) {
     box.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`;
