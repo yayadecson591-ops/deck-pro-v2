@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05070a">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest">
   <title>Deck Pro</title>
+  <link rel="manifest" href="manifest.webmanifest">
   <style>
     :root {
       --bg: #05070a; --panel: #0b1117; --panel2: #0f161d; --line: #1e2a34;
@@ -45,7 +44,7 @@
     .nav { display: grid; gap: 4px; flex: 1; }
     .nav button {
       text-align: left; padding: 11px 12px; border-radius: 8px; color: var(--muted);
-      font-weight: 700; font-size: 13px; border: 1px solid transparent; transition: .15s;
+      font-weight: 700; font-size: 13px; border: 1px solid transparent;
     }
     .nav button:hover, .nav button.active { background: #111a20; border-color: #273640; color: #fff; }
     .side-foot { font-size: 10px; color: #5a6872; padding: 12px 8px 4px; }
@@ -80,14 +79,12 @@
     .hero p { color: var(--muted); font-size: 13px; max-width: 420px; }
     .btn {
       border-radius: 9px; padding: 10px 14px; font-weight: 800; font-size: 13px;
-      display: inline-flex; align-items: center; gap: 6px; transition: .15s; border: 1px solid transparent;
+      display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent;
     }
     .btn.primary { background: var(--green); color: #071006; }
-    .btn.primary:hover { filter: brightness(1.08); }
     .btn.secondary { background: #132018; border-color: #2a3d2a; color: var(--green); }
     .btn.ghost { background: transparent; border-color: var(--line); color: var(--muted); }
     .btn.danger { background: #2a1010; border-color: #5a2020; color: var(--red); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
     .btn.sm { padding: 7px 11px; font-size: 12px; }
     .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
     .panel h3 { font-size: 13px; font-weight: 800; margin-bottom: 12px; color: #d0d8de; }
@@ -104,29 +101,23 @@
     .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
     .book-card {
       background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
-      padding: 14px; display: flex; flex-direction: column; gap: 10px; transition: border-color .15s;
+      padding: 14px; display: flex; flex-direction: column; gap: 10px;
     }
-    .book-card:hover { border-color: #2e3d48; }
     .book-card.connected { border-color: #2a4a1a; }
-    .book-card.expired { border-color: #5a3a10; }
     .book-head { display: flex; align-items: center; gap: 10px; }
     .book-logo {
       width: 40px; height: 40px; border-radius: 10px; background: #121a22;
       display: grid; place-items: center; font-weight: 900; font-size: 13px; color: var(--muted);
-      overflow: hidden; flex-shrink: 0;
     }
-    .book-logo img { width: 100%; height: 100%; object-fit: contain; }
     .book-name { font-weight: 800; font-size: 14px; }
     .book-status { font-size: 11px; font-weight: 700; margin-top: 2px; }
     .book-status.ok { color: var(--green); }
-    .book-status.sync { color: var(--orange); }
     .book-status.off { color: var(--red); }
-    .book-status.warn { color: var(--orange); }
+    .book-status.warn, .book-status.sync { color: var(--orange); }
     .book-meta { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
     .book-meta b { color: #c8d0d6; font-weight: 700; }
-    .book-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 4px; }
+    .book-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
     .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
-    .toggle input { accent-color: var(--green); width: 16px; height: 16px; }
     .notice { border-radius: 8px; padding: 10px 12px; font-size: 12px; font-weight: 600; }
     .notice.good { background: #0f1a0a; border: 1px solid #2a4a1a; color: var(--green); }
     .notice.warn { background: #1a1408; border: 1px solid #4a3a10; color: var(--orange); }
@@ -139,7 +130,6 @@
       width: 100%; background: #0a0f14; border: 1px solid var(--line); border-radius: 8px;
       padding: 9px 11px; color: var(--text); outline: none;
     }
-    .field input:focus, .field select:focus { border-color: #3a5a2a; }
     .match-card {
       background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
       padding: 14px; margin-bottom: 10px;
@@ -147,7 +137,6 @@
     .match-card .league { font-size: 11px; color: var(--muted); font-weight: 700; }
     .match-card .teams { font-weight: 800; font-size: 15px; margin: 4px 0 8px; }
     .match-card .meta { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--muted); }
-    .freshness { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; }
     .freshness.ok { color: var(--green); }
     .freshness.warn { color: var(--orange); }
     .freshness.bad { color: var(--red); }
@@ -162,14 +151,10 @@
     .check-list .pend::before { content: "○ "; color: var(--muted); }
     .journal-row {
       display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; padding: 10px 0;
-      border-bottom: 1px solid var(--line); font-size: 12px; align-items: start;
+      border-bottom: 1px solid var(--line); font-size: 12px;
     }
-    .journal-row:last-child { border-bottom: none; }
-    .journal-time { color: var(--muted); font-weight: 600; }
-    .journal-status { font-weight: 800; font-size: 11px; text-transform: uppercase; }
     .journal-status.accepted { color: var(--green); }
     .journal-status.rejected, .journal-status.failed { color: var(--red); }
-    .journal-status.pending, .journal-status.partial { color: var(--orange); }
     .mobile-nav {
       display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #06090d;
       border-top: 1px solid var(--line); padding: 6px 4px calc(6px + var(--safe-bottom));
@@ -200,7 +185,6 @@
       background: transparent; border: none; outline: none; font-size: 18px;
       font-weight: 900; width: 120px; color: var(--text);
     }
-    .stake-input span { color: var(--muted); font-weight: 700; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -240,28 +224,22 @@
           <div>
             <div class="eyebrow">Système</div>
             <h1>Deck Pro</h1>
-            <p>Plateforme de détection et d’exécution de surebets. Connexions persistantes, revalidation des cotes, mise automatique.</p>
+            <p>Détection et exécution de surebets. Connexions persistantes, revalidation des cotes, mise automatique.</p>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn secondary" onclick="tab('books')">Mes bookmakers</button>
             <button class="btn primary" onclick="tab('autobet')">Mise auto</button>
           </div>
         </div>
-        <div class="stats" id="homeStats">
+        <div class="stats">
           <div class="stat"><div class="label">Système</div><div class="value" id="statSystem">—</div><div class="sub" id="statSystemSub">État</div></div>
           <div class="stat"><div class="label">Bookmakers</div><div class="value" id="statBooks">—</div><div class="sub">connectés</div></div>
           <div class="stat"><div class="label">Mise auto</div><div class="value" id="statAuto">—</div><div class="sub" id="statAutoSub">global</div></div>
           <div class="stat"><div class="label">Barème</div><div class="value" id="statStake">—</div><div class="sub">FCFA / opération</div></div>
         </div>
         <div class="grid cols-2">
-          <div class="panel">
-            <h3>État des comptes</h3>
-            <div id="homeBooksPreview" class="empty">Chargement…</div>
-          </div>
-          <div class="panel">
-            <h3>Dernières opérations</h3>
-            <div id="homeJournal" class="empty">Chargement…</div>
-          </div>
+          <div class="panel"><h3>État des comptes</h3><div id="homeBooksPreview" class="empty">Chargement…</div></div>
+          <div class="panel"><h3>Dernières opérations</h3><div id="homeJournal" class="empty">Chargement…</div></div>
         </div>
       </section>
       <section id="books" class="section">
@@ -269,140 +247,81 @@
           <div>
             <div class="eyebrow">Comptes</div>
             <h1>Mes bookmakers</h1>
-            <p>18 bookmakers. Connexion une fois, reconnaissance persistante. Aucun secret affiché.</p>
+            <p>18 bookmakers. Connexion une fois, mémorisation sécurisée.</p>
           </div>
           <button class="btn primary" onclick="openConnectModal()">+ Connecter</button>
         </div>
-        <div class="notice info" style="margin-bottom:14px">
-          La connexion est mémorisée de façon sécurisée côté serveur. Vous n’avez pas à ressaisir vos identifiants à chaque opportunité.
-        </div>
-        <div class="book-grid" id="bookGrid"><div class="empty">Chargement des bookmakers…</div></div>
+        <div class="book-grid" id="bookGrid"><div class="empty">Chargement…</div></div>
       </section>
       <section id="opps" class="section">
         <div class="hero">
-          <div>
-            <div class="eyebrow">Arbitrage</div>
-            <h1>Opportunités</h1>
-            <p>Surebets détectés. Garantie uniquement si toutes les issues du marché sont couvertes.</p>
-          </div>
+          <div><div class="eyebrow">Arbitrage</div><h1>Opportunités</h1></div>
           <button class="btn secondary" onclick="loadOpps()">Actualiser</button>
         </div>
-        <div id="oppsList" class="empty">Aucune opportunité réelle disponible pour le moment.</div>
+        <div id="oppsList" class="empty">Chargement…</div>
       </section>
       <section id="radar" class="section">
         <div class="hero">
-          <div>
-            <div class="eyebrow">Radar</div>
-            <h1>Radar pronostics</h1>
-            <p>Flux de fixtures et cotes (source configurée).</p>
-          </div>
+          <div><div class="eyebrow">Radar</div><h1>Radar</h1></div>
           <button class="btn secondary" onclick="loadPronos()">Actualiser</button>
         </div>
         <div id="radarSports" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
         <div id="pronoList" class="empty">Chargement…</div>
       </section>
       <section id="live" class="section">
-        <div class="hero">
-          <div>
-            <div class="eyebrow">Live</div>
-            <h1>Matchs live</h1>
-          </div>
-          <button class="btn secondary" onclick="loadLive()">Actualiser</button>
-        </div>
+        <div class="hero"><div><div class="eyebrow">Live</div><h1>Matchs live</h1></div>
+          <button class="btn secondary" onclick="loadLive()">Actualiser</button></div>
         <div id="liveList" class="empty">Chargement…</div>
       </section>
       <section id="pre" class="section">
-        <div class="hero">
-          <div>
-            <div class="eyebrow">Pré-match</div>
-            <h1>Fixtures à venir</h1>
-          </div>
-          <button class="btn secondary" onclick="loadPre()">Actualiser</button>
-        </div>
+        <div class="hero"><div><div class="eyebrow">Pré-match</div><h1>Fixtures</h1></div>
+          <button class="btn secondary" onclick="loadPre()">Actualiser</button></div>
         <div id="preList" class="empty">Chargement…</div>
       </section>
       <section id="autobet" class="section">
-        <div class="hero">
-          <div>
-            <div class="eyebrow">Exécution</div>
-            <h1>Mise automatique</h1>
-            <p>Barème total par opération. Répartition calculée selon les cotes, soldes et limites.</p>
-          </div>
-        </div>
+        <div class="hero"><div><div class="eyebrow">Exécution</div><h1>Mise automatique</h1></div></div>
         <div class="autobet-panel off" id="autoPanel">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-            <div>
-              <div class="eyebrow" style="margin-bottom:4px">Contrôle global</div>
-              <div style="font-size:20px;font-weight:900" id="autoLabel">OFF</div>
-            </div>
+            <div><div class="eyebrow">Contrôle global</div><div style="font-size:20px;font-weight:900" id="autoLabel">OFF</div></div>
             <button class="btn primary" id="autoToggleBtn" onclick="toggleGlobalAuto()">Activer</button>
           </div>
-          <div style="margin-top:16px">
-            <div class="field">
-              <label>Barème total (FCFA par opération)</label>
-              <div class="stake-input">
-                <input type="number" id="stakeTotal" min="1000" step="1000" value="50000" onchange="saveStake()">
-                <span>FCFA</span>
-              </div>
+          <div style="margin-top:16px" class="field">
+            <label>Barème total (FCFA)</label>
+            <div class="stake-input">
+              <input type="number" id="stakeTotal" min="1000" step="1000" value="50000" onchange="saveStake()">
+              <span>FCFA</span>
             </div>
           </div>
-          <div class="check-list" id="autoChecks" style="margin-top:14px">
-            <div class="pend">Connexions persistantes</div>
-            <div class="pend">Canal d’exécution</div>
-            <div class="pend">Revalidation cotes</div>
-            <div class="pend">Couverture garantie</div>
-            <div class="pend">Soldes disponibles</div>
-          </div>
-          <div class="notice warn" id="autoMsg" style="margin-top:10px">Mise automatique désactivée.</div>
+          <div class="check-list" id="autoChecks"></div>
+          <div class="notice warn" id="autoMsg">Mise automatique désactivée.</div>
         </div>
         <div class="panel" style="margin-top:14px">
-          <h3>Mode Autopilote</h3>
-          <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Surveillance continue côté serveur.</p>
-          <label class="toggle">
-            <input type="checkbox" id="autopilotToggle" onchange="toggleAutopilot()"> Autopilote ON
-          </label>
+          <h3>Autopilote</h3>
+          <label class="toggle"><input type="checkbox" id="autopilotToggle" onchange="toggleAutopilot()"> Activer la surveillance continue</label>
           <div class="notice info" id="autopilotMsg" style="margin-top:10px">Autopilote désactivé.</div>
-        </div>
-        <div class="panel" style="margin-top:14px">
-          <h3>Prévisualisation avant placement</h3>
-          <div id="prePlacePreview" class="empty">Aucune opportunité sélectionnée.</div>
         </div>
       </section>
       <section id="journal" class="section">
-        <div class="hero">
-          <div>
-            <div class="eyebrow">Historique</div>
-            <h1>Journal</h1>
-            <p>Statut réel uniquement — aucune simulation.</p>
-          </div>
-          <button class="btn secondary" onclick="loadHistory()">Actualiser</button>
-        </div>
+        <div class="hero"><div><div class="eyebrow">Historique</div><h1>Journal</h1></div>
+          <button class="btn secondary" onclick="loadHistory()">Actualiser</button></div>
         <div class="panel" id="historyList"><div class="empty">Chargement…</div></div>
       </section>
       <section id="settings" class="section">
-        <div class="hero">
-          <div>
-            <div class="eyebrow">Config</div>
-            <h1>Paramètres</h1>
+        <div class="hero"><div><div class="eyebrow">Sécurité</div><h1>Paramètres</h1></div></div>
+        <div class="panel" style="margin-bottom:14px">
+          <h3>Session propriétaire</h3>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:10px">Obligatoire pour connecter les bookmakers et activer la mise auto.</p>
+          <div class="field"><label>Code propriétaire (4 chiffres)</label>
+            <input id="ownerCode" type="password" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="off">
           </div>
+          <button class="btn primary" style="margin-top:10px" onclick="softActivate()">Ouvrir session</button>
+          <div id="lockMsg" class="notice warn" style="margin-top:10px">Session fermée.</div>
         </div>
-        <div class="grid cols-2">
-          <div class="panel">
-            <h3>Affichage</h3>
-            <div class="formgrid">
-              <div class="field"><label>Luminosité</label><input id="brightness" type="range" min="60" max="130" value="100"></div>
-              <div class="field"><label>Contraste</label><input id="contrast" type="range" min="80" max="130" value="100"></div>
-            </div>
-            <button class="btn secondary" style="margin-top:12px" onclick="saveSettings()">Enregistrer</button>
-          </div>
-          <div class="panel">
-            <h3>Sécurité propriétaire</h3>
-            <div class="field">
-              <label>Code d’accès (4 chiffres)</label>
-              <input id="ownerCode" type="password" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="off">
-            </div>
-            <button class="btn primary" style="margin-top:10px" onclick="softActivate()">Ouvrir session</button>
-            <div id="lockMsg" class="notice warn" style="margin-top:10px">Session optionnelle pour la lecture.</div>
+        <div class="panel">
+          <h3>Affichage</h3>
+          <div class="formgrid">
+            <div class="field"><label>Luminosité</label><input id="brightness" type="range" min="70" max="120" value="100" onchange="saveSettings()"></div>
+            <div class="field"><label>Contraste</label><input id="contrast" type="range" min="80" max="130" value="100" onchange="saveSettings()"></div>
           </div>
         </div>
       </section>
@@ -412,29 +331,33 @@
 <nav class="mobile-nav">
   <button data-tab="home" class="active"><span class="ico">⌂</span>Accueil</button>
   <button data-tab="books"><span class="ico">◎</span>Comptes</button>
-  <button data-tab="opps"><span class="ico">◈</span>Surebets</button>
+  <button data-tab="radar"><span class="ico">◉</span>Radar</button>
   <button data-tab="autobet"><span class="ico">⚡</span>Auto</button>
-  <button data-tab="journal"><span class="ico">☰</span>Journal</button>
+  <button data-tab="settings"><span class="ico">⚙</span>Réglages</button>
 </nav>
-<div class="modal-backdrop hidden" id="connectModal">
+<div id="connectModal" class="modal-backdrop hidden">
   <div class="modal">
     <h2>Connecter un bookmaker</h2>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Identifiants chiffrés côté serveur uniquement.</p>
-    <div class="formgrid" style="grid-template-columns:1fr">
-      <div class="field"><label>Bookmaker</label><select id="syncBook"></select></div>
-      <div class="field"><label>Nom du compte</label><input id="syncLabel" placeholder="Ex. principal"></div>
-      <div class="field"><label>Canal</label><select id="syncChannel"><option value="user_credentials">Identifiants</option><option value="user_token">Token</option></select></div>
+    <div class="formgrid">
+      <div class="field" style="grid-column:1/-1"><label>Bookmaker</label><select id="syncBook"></select></div>
+      <div class="field"><label>Canal</label>
+        <select id="syncChannel">
+          <option value="credentials">Identifiants</option>
+          <option value="user_token">Token</option>
+        </select>
+      </div>
+      <div class="field"><label>Libellé compte</label><input id="syncLabel" placeholder="principal"></div>
       <div class="field"><label>Identifiant</label><input id="syncIdentifier" autocomplete="username"></div>
       <div class="field"><label>Mot de passe</label><input id="syncPassword" type="password" autocomplete="current-password"></div>
-      <div class="field"><label>Token</label><input id="syncToken" type="password" autocomplete="off"></div>
+      <div class="field" style="grid-column:1/-1"><label>Token (si canal token)</label><input id="syncToken" type="password"></div>
     </div>
-    <div id="syncMsg" class="notice warn" style="margin-top:12px">—</div>
+    <div id="syncMsg" class="notice warn" style="margin-top:10px">—</div>
     <div class="modal-actions">
       <button class="btn ghost" onclick="closeConnectModal()">Annuler</button>
-      <button class="btn primary" onclick="syncBookmaker()">Enregistrer la connexion</button>
+      <button class="btn primary" onclick="syncBookmaker()">Enregistrer</button>
     </div>
   </div>
 </div>
-<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/app.js"></script>
+<script src="./app.js"></script>
 </body>
 </html>
