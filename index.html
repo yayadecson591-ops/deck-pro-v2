@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05070a">
   <title>Deck Pro</title>
-  <link rel="stylesheet" href="ui-polish.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/ui-polish.css">
   <style>
     :root {
       --bg: #05070a; --panel: #0b1117; --panel2: #0f161d; --line: #1e2a34;
@@ -107,7 +107,7 @@
     .book-logo {
       width: 44px; height: 44px; border-radius: 12px; background: #121a22;
       display: grid; place-items: center; font-weight: 900; font-size: 14px; color: var(--muted);
-      flex-shrink: 0; letter-spacing: -0.02em;
+      flex-shrink: 0;
     }
     .auto-badge {
       font-size: 9px; font-weight: 800; letter-spacing: 0.06em; padding: 4px 8px;
@@ -150,9 +150,9 @@
     }
     .autobet-panel.off { background: var(--panel); border-color: var(--line); }
     .check-list { display: grid; gap: 6px; margin: 12px 0; font-size: 12px; }
-    .check-list .ok::before { content: "✓ "; color: var(--green); font-weight: 900; }
-    .check-list .fail::before { content: "✗ "; color: var(--red); font-weight: 900; }
-    .check-list .pend::before { content: "○ "; color: var(--muted); }
+    .check-list .ok::before { content: "\2713 "; color: var(--green); font-weight: 900; }
+    .check-list .fail::before { content: "\2717 "; color: var(--red); font-weight: 900; }
+    .check-list .pend::before { content: "\25CB "; color: var(--muted); }
     .journal-row {
       display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; padding: 10px 0;
       border-bottom: 1px solid var(--line); font-size: 12px;
@@ -249,7 +249,7 @@
           <div>
             <div class="eyebrow">Comptes</div>
             <h1>Mes bookmakers</h1>
-            <p>18 bookmakers. Logos, solde, mise auto par compte. Connexion securisee une seule fois.</p>
+            <p>18 bookmakers. Logos, solde, mise auto par compte.</p>
           </div>
           <button class="btn primary" onclick="openConnectModal()">+ Connecter</button>
         </div>
@@ -295,7 +295,7 @@
             </div>
           </div>
           <div class="check-list" id="autoChecks"></div>
-          <div class="notice warn" id="autoMsg">Mise automatique desactivee. Connectez un bookmaker puis activez la mise auto.</div>
+          <div class="notice warn" id="autoMsg">Mise automatique desactivee.</div>
         </div>
         <div class="panel" style="margin-top:14px">
           <h3>Autopilote</h3>
@@ -362,8 +362,9 @@
     </div>
   </div>
 </div>
-<script src="book-brands.js"></script>
-<script src="./app.js"></script>
-<script src="app-patch.js"></script>
+<!-- Scripts charges depuis jsDelivr car le static Render ne publiait pas app.js -->
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/book-brands.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/app.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/app-patch.js"></script>
 </body>
 </html>
