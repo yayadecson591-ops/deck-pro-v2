@@ -158,7 +158,8 @@
     }
     .mobile-nav button {
       flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-      padding: 6px 2px; color: var(--muted); font-size: 9px; font-weight: 700;
+      padding: 10px 2px; color: var(--muted); font-size: 9px; font-weight: 700;
+      min-height: 48px; -webkit-tap-highlight-color: rgba(185,255,74,.25); touch-action: manipulation;
     }
     .mobile-nav button.active { color: var(--green); }
     .mobile-nav .ico { font-size: 16px; line-height: 1; }
@@ -194,15 +195,15 @@
       </div>
     </div>
     <nav class="nav">
-      <button data-tab="home" class="active">Tableau de bord</button>
-      <button data-tab="books">Mes bookmakers</button>
-      <button data-tab="opps">Opportunites</button>
-      <button data-tab="radar">Radar</button>
-      <button data-tab="live">Live</button>
-      <button data-tab="pre">Pre-match</button>
-      <button data-tab="autobet">Mise automatique</button>
-      <button data-tab="journal">Journal</button>
-      <button data-tab="settings">Parametres</button>
+      <button type="button" data-tab="home" class="active">Tableau de bord</button>
+      <button type="button" data-tab="books">Mes bookmakers</button>
+      <button type="button" data-tab="opps">Opportunites</button>
+      <button type="button" data-tab="radar">Radar</button>
+      <button type="button" data-tab="live">Live</button>
+      <button type="button" data-tab="pre">Pre-match</button>
+      <button type="button" data-tab="autobet">Mise automatique</button>
+      <button type="button" data-tab="journal">Journal</button>
+      <button type="button" data-tab="settings">Parametres</button>
     </nav>
     <div class="side-foot">
       <span class="status-dot" id="sideDot"></span>
@@ -223,8 +224,8 @@
             <p>Detection et execution de surebets. Connexions persistantes, revalidation des cotes, mise automatique.</p>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn secondary" onclick="tab('books')">Mes bookmakers</button>
-            <button class="btn primary" onclick="tab('autobet')">Mise auto</button>
+            <button type="button" class="btn secondary" onclick="(window.__deckShowTab||window.tab||function(){})('books')">Mes bookmakers</button>
+            <button type="button" class="btn primary" onclick="(window.__deckShowTab||window.tab||function(){})('autobet')">Mise auto</button>
           </div>
         </div>
         <div class="stats">
@@ -245,46 +246,46 @@
             <h1>Mes bookmakers</h1>
             <p>18 bookmakers. Connexion une fois, memorisation securisee.</p>
           </div>
-          <button class="btn primary" onclick="openConnectModal()">+ Connecter</button>
+          <button type="button" class="btn primary" onclick="typeof openConnectModal==='function'&&openConnectModal()">+ Connecter</button>
         </div>
         <div class="book-grid" id="bookGrid"><div class="empty">Chargement…</div></div>
       </section>
       <section id="opps" class="section">
         <div class="hero">
           <div><div class="eyebrow">Arbitrage</div><h1>Opportunites</h1></div>
-          <button class="btn secondary" onclick="loadOpps()">Actualiser</button>
+          <button type="button" class="btn secondary" onclick="typeof loadOpps==='function'&&loadOpps()">Actualiser</button>
         </div>
         <div id="oppsList" class="empty">Chargement…</div>
       </section>
       <section id="radar" class="section">
         <div class="hero">
           <div><div class="eyebrow">Radar</div><h1>Radar</h1></div>
-          <button class="btn secondary" onclick="loadPronos()">Actualiser</button>
+          <button type="button" class="btn secondary" onclick="typeof loadPronos==='function'&&loadPronos()">Actualiser</button>
         </div>
         <div id="radarSports" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
-        <div id="pronoList" class="empty">Chargement…</div>
+        <div id="pronoList" class="empty">Appuyez sur Actualiser pour charger les matchs.</div>
       </section>
       <section id="live" class="section">
         <div class="hero"><div><div class="eyebrow">Live</div><h1>Matchs live</h1></div>
-          <button class="btn secondary" onclick="loadLive()">Actualiser</button></div>
-        <div id="liveList" class="empty">Chargement…</div>
+          <button type="button" class="btn secondary" onclick="typeof loadLive==='function'&&loadLive()">Actualiser</button></div>
+        <div id="liveList" class="empty">Appuyez sur Actualiser. Si vide : aucun live ou quota cotes.</div>
       </section>
       <section id="pre" class="section">
         <div class="hero"><div><div class="eyebrow">Pre-match</div><h1>Fixtures</h1></div>
-          <button class="btn secondary" onclick="loadPre()">Actualiser</button></div>
-        <div id="preList" class="empty">Chargement…</div>
+          <button type="button" class="btn secondary" onclick="typeof loadPre==='function'&&loadPre()">Actualiser</button></div>
+        <div id="preList" class="empty">Appuyez sur Actualiser pour le pre-match.</div>
       </section>
       <section id="autobet" class="section">
         <div class="hero"><div><div class="eyebrow">Execution</div><h1>Mise automatique</h1></div></div>
         <div class="autobet-panel off" id="autoPanel">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
             <div><div class="eyebrow">Controle global</div><div style="font-size:20px;font-weight:900" id="autoLabel">OFF</div></div>
-            <button class="btn primary" id="autoToggleBtn" onclick="toggleGlobalAuto()">Activer</button>
+            <button type="button" class="btn primary" id="autoToggleBtn" onclick="typeof toggleGlobalAuto==='function'&&toggleGlobalAuto()">Activer</button>
           </div>
           <div style="margin-top:16px" class="field">
             <label>Bareme total (FCFA)</label>
             <div class="stake-input">
-              <input type="number" id="stakeTotal" min="1000" step="1000" value="50000" onchange="saveStake()">
+              <input type="number" id="stakeTotal" min="1000" step="1000" value="50000" onchange="typeof saveStake==='function'&&saveStake()">
               <span>FCFA</span>
             </div>
           </div>
@@ -293,13 +294,13 @@
         </div>
         <div class="panel" style="margin-top:14px">
           <h3>Autopilote</h3>
-          <label class="toggle"><input type="checkbox" id="autopilotToggle" onchange="toggleAutopilot()"> Activer la surveillance continue</label>
+          <label class="toggle"><input type="checkbox" id="autopilotToggle" onchange="typeof toggleAutopilot==='function'&&toggleAutopilot()"> Activer la surveillance continue</label>
           <div class="notice info" id="autopilotMsg" style="margin-top:10px">Autopilote desactive.</div>
         </div>
       </section>
       <section id="journal" class="section">
         <div class="hero"><div><div class="eyebrow">Historique</div><h1>Journal</h1></div>
-          <button class="btn secondary" onclick="loadHistory()">Actualiser</button></div>
+          <button type="button" class="btn secondary" onclick="typeof loadHistory==='function'&&loadHistory()">Actualiser</button></div>
         <div class="panel" id="historyList"><div class="empty">Chargement…</div></div>
       </section>
       <section id="settings" class="section">
@@ -310,14 +311,14 @@
           <div class="field"><label>Code proprietaire (4 chiffres)</label>
             <input id="ownerCode" type="password" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="off">
           </div>
-          <button class="btn primary" style="margin-top:10px" onclick="softActivate()">Ouvrir session</button>
+          <button type="button" class="btn primary" style="margin-top:10px" onclick="typeof softActivate==='function'&&softActivate()">Ouvrir session</button>
           <div id="lockMsg" class="notice warn" style="margin-top:10px">Session fermee.</div>
         </div>
         <div class="panel">
           <h3>Affichage</h3>
           <div class="formgrid">
-            <div class="field"><label>Luminosite</label><input id="brightness" type="range" min="70" max="120" value="100" onchange="saveSettings()"></div>
-            <div class="field"><label>Contraste</label><input id="contrast" type="range" min="80" max="130" value="100" onchange="saveSettings()"></div>
+            <div class="field"><label>Luminosite</label><input id="brightness" type="range" min="70" max="120" value="100" onchange="typeof saveSettings==='function'&&saveSettings()"></div>
+            <div class="field"><label>Contraste</label><input id="contrast" type="range" min="80" max="130" value="100" onchange="typeof saveSettings==='function'&&saveSettings()"></div>
           </div>
         </div>
       </section>
@@ -325,12 +326,12 @@
   </main>
 </div>
 <nav class="mobile-nav">
-  <button data-tab="home" class="active"><span class="ico">⌂</span>Accueil</button>
-  <button data-tab="radar"><span class="ico">◉</span>Radar</button>
-  <button data-tab="live"><span class="ico">▶</span>Live</button>
-  <button data-tab="pre"><span class="ico">◷</span>Pre</button>
-  <button data-tab="books"><span class="ico">◎</span>Comptes</button>
-  <button data-tab="settings"><span class="ico">⚙</span>Reglages</button>
+  <button type="button" data-tab="home" class="active"><span class="ico">⌂</span>Accueil</button>
+  <button type="button" data-tab="radar"><span class="ico">◉</span>Radar</button>
+  <button type="button" data-tab="live"><span class="ico">▶</span>Live</button>
+  <button type="button" data-tab="pre"><span class="ico">◷</span>Pre</button>
+  <button type="button" data-tab="books"><span class="ico">◎</span>Comptes</button>
+  <button type="button" data-tab="settings"><span class="ico">⚙</span>Reglages</button>
 </nav>
 <div id="connectModal" class="modal-backdrop hidden">
   <div class="modal">
@@ -350,14 +351,64 @@
     </div>
     <div id="syncMsg" class="notice warn" style="margin-top:10px">—</div>
     <div class="modal-actions">
-      <button class="btn ghost" onclick="closeConnectModal()">Annuler</button>
-      <button class="btn primary" onclick="syncBookmaker()">Enregistrer</button>
+      <button type="button" class="btn ghost" onclick="typeof closeConnectModal==='function'&&closeConnectModal()">Annuler</button>
+      <button type="button" class="btn primary" onclick="typeof syncBookmaker==='function'&&syncBookmaker()">Enregistrer</button>
     </div>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@fa223966a9/book-brands.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@fa223966a9/app.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@fa223966a9/app-patch.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/display-fix.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@879e46d0d95159867586167685fea7cac78a8a5e/display-fix.js"></script>
+<script>
+/* Navigation tactile — fonctionne même si app.js échoue */
+(function(){
+  function showTab(id){
+    if(!id) return;
+    document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('show'); });
+    var el = document.getElementById(id);
+    if(el) el.classList.add('show');
+    document.querySelectorAll('.nav button, .mobile-nav button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-tab') === id);
+    });
+    var page = document.getElementById('page');
+    var labels = {home:'TABLEAU DE BORD',books:'MES BOOKMAKERS',opps:'OPPORTUNITES',radar:'RADAR',live:'LIVE',pre:'PRE-MATCH',autobet:'MISE AUTOMATIQUE',journal:'JOURNAL',settings:'PARAMETRES'};
+    if(page) page.textContent = labels[id] || id.toUpperCase();
+    try {
+      if(id==='radar' && typeof loadPronos==='function') loadPronos();
+      if(id==='live' && typeof loadLive==='function') loadLive();
+      if(id==='pre' && typeof loadPre==='function') loadPre();
+      if(id==='books' && typeof loadBooks==='function') loadBooks();
+      if(id==='home' && typeof loadHome==='function') loadHome();
+      if(id==='journal' && typeof loadHistory==='function') loadHistory();
+      if(id==='autobet' && typeof loadAutoStake==='function') loadAutoStake();
+      if(id==='opps' && typeof loadOpps==='function') loadOpps();
+      if(id==='settings' && typeof loadSettings==='function') loadSettings();
+    } catch(e) {}
+  }
+  function bind(){
+    document.querySelectorAll('.nav button, .mobile-nav button').forEach(function(b){
+      b.addEventListener('click', function(ev){
+        ev.preventDefault();
+        showTab(b.getAttribute('data-tab'));
+      });
+      b.addEventListener('touchend', function(ev){
+        ev.preventDefault();
+        showTab(b.getAttribute('data-tab'));
+      }, {passive:false});
+    });
+    fetch('https://deck-pro-server.onrender.com/api/system/readiness').then(function(r){return r.json()}).then(function(d){
+      if(d && (d.operational || d.ready)){
+        var p=document.getElementById('pill'); if(p){p.textContent='SYSTEME ACTIF';p.className='pill';}
+        var s=document.getElementById('statSystem'); if(s) s.textContent='ACTIF';
+        var side=document.getElementById('sideStatus'); if(side) side.textContent='Systeme actif';
+      }
+    }).catch(function(){});
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+  window.__deckShowTab = showTab;
+})();
+</script>
 </body>
 </html>
