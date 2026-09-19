@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05070a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Deck Pro</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/ui-polish.css">
+  <link rel="manifest" href="manifest.webmanifest">
   <style>
     :root {
       --bg: #05070a; --panel: #0b1117; --panel2: #0f161d; --line: #1e2a34;
@@ -105,16 +106,9 @@
     .book-card.connected { border-color: #2a4a1a; }
     .book-head { display: flex; align-items: center; gap: 10px; }
     .book-logo {
-      width: 44px; height: 44px; border-radius: 12px; background: #121a22;
-      display: grid; place-items: center; font-weight: 900; font-size: 14px; color: var(--muted);
-      flex-shrink: 0;
+      width: 40px; height: 40px; border-radius: 10px; background: #121a22;
+      display: grid; place-items: center; font-weight: 900; font-size: 13px; color: var(--muted);
     }
-    .auto-badge {
-      font-size: 9px; font-weight: 800; letter-spacing: 0.06em; padding: 4px 8px;
-      border-radius: 99px; white-space: nowrap; align-self: flex-start;
-    }
-    .auto-badge.on { background: #0f1a0a; color: var(--green); border: 1px solid #2a4a1a; }
-    .auto-badge.off { background: #12161a; color: var(--muted); border: 1px solid var(--line); }
     .book-name { font-weight: 800; font-size: 14px; }
     .book-status { font-size: 11px; font-weight: 700; margin-top: 2px; }
     .book-status.ok { color: var(--green); }
@@ -150,9 +144,9 @@
     }
     .autobet-panel.off { background: var(--panel); border-color: var(--line); }
     .check-list { display: grid; gap: 6px; margin: 12px 0; font-size: 12px; }
-    .check-list .ok::before { content: "\2713 "; color: var(--green); font-weight: 900; }
-    .check-list .fail::before { content: "\2717 "; color: var(--red); font-weight: 900; }
-    .check-list .pend::before { content: "\25CB "; color: var(--muted); }
+    .check-list .ok::before { content: "✓ "; color: var(--green); font-weight: 900; }
+    .check-list .fail::before { content: "✗ "; color: var(--red); font-weight: 900; }
+    .check-list .pend::before { content: "○ "; color: var(--muted); }
     .journal-row {
       display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; padding: 10px 0;
       border-bottom: 1px solid var(--line); font-size: 12px;
@@ -164,10 +158,10 @@
     }
     .mobile-nav button {
       flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-      padding: 6px 2px; color: var(--muted); font-size: 10px; font-weight: 700;
+      padding: 6px 2px; color: var(--muted); font-size: 9px; font-weight: 700;
     }
     .mobile-nav button.active { color: var(--green); }
-    .mobile-nav .ico { font-size: 18px; line-height: 1; }
+    .mobile-nav .ico { font-size: 16px; line-height: 1; }
     .modal-backdrop {
       position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 50;
       display: flex; align-items: flex-end; justify-content: center; padding: 16px;
@@ -249,7 +243,7 @@
           <div>
             <div class="eyebrow">Comptes</div>
             <h1>Mes bookmakers</h1>
-            <p>18 bookmakers. Logos, solde, mise auto par compte.</p>
+            <p>18 bookmakers. Connexion une fois, memorisation securisee.</p>
           </div>
           <button class="btn primary" onclick="openConnectModal()">+ Connecter</button>
         </div>
@@ -332,9 +326,10 @@
 </div>
 <nav class="mobile-nav">
   <button data-tab="home" class="active"><span class="ico">⌂</span>Accueil</button>
-  <button data-tab="books"><span class="ico">◎</span>Comptes</button>
   <button data-tab="radar"><span class="ico">◉</span>Radar</button>
-  <button data-tab="autobet"><span class="ico">⚡</span>Auto</button>
+  <button data-tab="live"><span class="ico">▶</span>Live</button>
+  <button data-tab="pre"><span class="ico">◷</span>Pre</button>
+  <button data-tab="books"><span class="ico">◎</span>Comptes</button>
   <button data-tab="settings"><span class="ico">⚙</span>Reglages</button>
 </nav>
 <div id="connectModal" class="modal-backdrop hidden">
@@ -342,29 +337,27 @@
     <h2>Connecter un bookmaker</h2>
     <div class="formgrid">
       <div class="field" style="grid-column:1/-1"><label>Bookmaker</label><select id="syncBook"></select></div>
-      <div class="field" style="grid-column:1/-1"><label>Nom du compte</label><input id="syncLabel" placeholder="principal"></div>
       <div class="field"><label>Canal</label>
         <select id="syncChannel">
-          <option value="user_credentials">Identifiants</option>
+          <option value="credentials">Identifiants</option>
           <option value="user_token">Token</option>
-          <option value="official_api">API officielle</option>
-          <option value="partner_sdk">Partner SDK</option>
         </select>
       </div>
+      <div class="field"><label>Libelle compte</label><input id="syncLabel" placeholder="principal"></div>
       <div class="field"><label>Identifiant</label><input id="syncIdentifier" autocomplete="username"></div>
       <div class="field"><label>Mot de passe</label><input id="syncPassword" type="password" autocomplete="current-password"></div>
       <div class="field" style="grid-column:1/-1"><label>Token (si canal token)</label><input id="syncToken" type="password"></div>
     </div>
-    <div id="syncMsg" class="notice warn" style="margin-top:12px">—</div>
+    <div id="syncMsg" class="notice warn" style="margin-top:10px">—</div>
     <div class="modal-actions">
       <button class="btn ghost" onclick="closeConnectModal()">Annuler</button>
       <button class="btn primary" onclick="syncBookmaker()">Enregistrer</button>
     </div>
   </div>
 </div>
-<!-- Scripts charges depuis jsDelivr car le static Render ne publiait pas app.js -->
-<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/book-brands.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/app.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/app-patch.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@fa223966a9/book-brands.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@fa223966a9/app.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@fa223966a9/app-patch.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/yayadecson591-ops/deck-pro-v2@main/display-fix.js"></script>
 </body>
 </html>
