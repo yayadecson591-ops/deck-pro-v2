@@ -11,7 +11,7 @@ services:
     buildCommand: |
       mkdir -p public
       cp -f index.html app.js sw.js manifest.webmanifest public/ || true
-      cp -f book-brands.js app-patch.js ui-polish.css public/ || true
+      cp -f book-brands.js app-patch.js ui-polish.css display-fix.js public/ || true
       ls -la public/
     staticPublishPath: ./public
     autoDeployTrigger: commit
