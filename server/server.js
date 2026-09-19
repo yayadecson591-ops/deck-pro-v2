@@ -34,27 +34,55 @@ const hash=(code,salt=effectiveSalt)=>crypto.createHash('sha256').update(String(
 const token=(device='')=>{const p=Buffer.from(JSON.stringify({role:'owner',exp:Date.now()+2592000000,did:device})).toString('base64url');return p+'.'+crypto.createHmac('sha256',effectiveSecret).update(p).digest('base64url')};
 function auth(req,res,next){const t=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');try{if(!effectiveSecret||!t)throw 0;const [p,s]=t.split('.');const e=crypto.createHmac('sha256',effectiveSecret).update(p).digest('base64url');const x=JSON.parse(Buffer.from(p,'base64url').toString());if(s!==e||x.role!=='owner'||Number(x.exp)<=Date.now())throw 0;req.owner=x;next()}catch{return res.status(401).json({ok:false,error:'Activation propriétaire requise.'})}}
 const oddsCache=new Map();
-const ODDS_CACHE_TTL_MS=Number(process.env.ODDS_CACHE_TTL_MS||120000);
+const ODDS_CACHE_TTL_MS=Number(process.env.ODDS_CACHE_TTL_MS||600000);
 function cacheKey(pathname,params){return pathname+'?'+new URLSearchParams({...params}).toString()}
-function getCached(key){const e=oddsCache.get(key);if(!e)return null;if(Date.now()>e.exp)return null;return e.data}
+function getCached(key,allowStale=false){const e=oddsCache.get(key);if(!e)return null;if(Date.now()>e.exp&&!allowStale)return null;return e.data}
 function setCached(key,data,ttl=ODDS_CACHE_TTL_MS){oddsCache.set(key,{data,exp:Date.now()+ttl,saved:Date.now()});if(oddsCache.size>200){const first=oddsCache.keys().next().value;oddsCache.delete(first)}}
 async function oddsPapi(pathname,params={}){
   if(!API_KEY)throw Object.assign(new Error('Source live OddsPapi non configurée (ODDSPAPI_API_KEY).'),{status:503,code:'ODDSPAPI_NOT_CONFIGURED'});
   const key=cacheKey(pathname,params);
-  const hit=getCached(key);
+  const hit=getCached(key,false);
   if(hit!==null)return hit;
   const q=new URLSearchParams({apiKey:API_KEY,language:'en',...params});
-  const r=await fetch(`${ODDS_BASE}${pathname}?${q}`,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)});
-  const text=await r.text();
+  let r,text;
+  try{
+    r=await fetch(`${ODDS_BASE}${pathname}?${q}`,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)});
+    text=await r.text();
+  }catch(netErr){
+    const stale=getCached(key,true);
+    if(stale!==null)return stale;
+    throw Object.assign(new Error('Source cotes injoignable'),{status:502,code:'ODDSPAPI_NETWORK'});
+  }
   let data;try{data=JSON.parse(text)}catch{data={error:text.slice(0,300)}}
   if(!r.ok){
-    const stale=oddsCache.get(key);
-    if(stale&&(r.status===429||r.status===503))return stale.data;
+    const stale=getCached(key,true);
+    if(stale!==null&&(r.status===429||r.status===503||r.status===502))return stale;
+    if(r.status===429||r.status===503){
+      for(const [k,e] of oddsCache.entries()){
+        if(k.startsWith(pathname+'?')&&e&&e.data)return e.data;
+      }
+    }
     const msg=typeof data?.message==='string'?data.message:(typeof data?.error==='string'?data.error:(data?.error?.message||`OddsPapi HTTP ${r.status}`));
     throw Object.assign(new Error(String(msg)),{status:r.status,code:r.status===429?'ODDSPAPI_RATE_LIMIT':'ODDSPAPI_ERROR'});
   }
   setCached(key,data);
   return data;
+}
+async function fetchFixturesForSports(sportIds,from,to){
+  const ids=sportIds.map(String);
+  let lastErr=null;
+  const parts=await Promise.all(ids.map(async sportId=>{
+    try{
+      const data=await oddsPapi('/fixtures',{sportId,from,to,hasOdds:'true'});
+      return Array.isArray(data)?data:[];
+    }catch(err){
+      lastErr=err;
+      return null;
+    }
+  }));
+  const okParts=parts.filter(p=>Array.isArray(p));
+  if(!okParts.length&&lastErr)throw lastErr;
+  return okParts.flat().filter(x=>x&&x.hasOdds);
 }
 function apiFail(res,e){const msg=typeof e?.message==='string'?e.message:(typeof e==='string'?e:'Source live indisponible.');return res.status(e?.status||502).json({ok:false,error:String(msg),code:e?.code||'LIVE_SOURCE_ERROR'})}
 function bookmakerLogo(x){return x?.logo||x?.logoUrl||x?.logoURL||x?.image||x?.icon||x?.iconUrl||null}
@@ -105,9 +133,9 @@ app.post('/api/execution/place-two',userAuth,async(req,res)=>{if(!relayExecution
 app.post('/api/execution/place-authorized',userAuth,async(req,res)=>{if(!relayExecutionAllowed())return res.status(503).json({ok:false,error:'Relais en attente.'});try{const body=req.body||{};const hydrated=await hydrateExecutionLegs(req.user.user_id,body.legs,false);if(!hydrated.ok)return res.status(422).json({ok:false,stage:'connection',...hydrated});const results=[];for(const leg of hydrated.legs){results.push(await placeAuthorizedBet(leg))}res.status(results.every(x=>x.ok)?200:409).json({ok:results.every(x=>x.ok),results})}catch(e){return apiFail(res,e)}});
 app.get('/api/sports',async(req,res)=>{try{res.json({ok:true,data:await oddsPapi('/sports')})}catch(e){apiFail(res,e)}});
 app.get('/api/fixtures',async(req,res)=>{try{const sportId=String(req.query.sportId||'10');const now=new Date();const from=req.query.from||now.toISOString();const to=req.query.to||new Date(now.getTime()+48*3600000).toISOString();const data=await oddsPapi('/fixtures',{sportId,from,to,hasOdds:'true'});res.json({ok:true,sportId,from,to,count:Array.isArray(data)?data.length:0,data:Array.isArray(data)?data:[]})}catch(e){apiFail(res,e)}});
-app.get('/api/radar',async(req,res)=>{try{const now=new Date();const from=now.toISOString();const to=new Date(now.getTime()+48*3600000).toISOString();const ids=String(req.query.sports||'10,11').split(',').map(x=>x.trim()).filter(Boolean);const parts=await Promise.all(ids.map(async sportId=>{try{const data=await oddsPapi('/fixtures',{sportId,from,to,hasOdds:'true'});return Array.isArray(data)?data:[]}catch(err){return []}}));const data=parts.flat().filter(x=>x?.hasOdds).sort((a,b)=>new Date(a.startTime||0)-new Date(b.startTime||0));res.json({ok:true,from,to,count:data.length,sports:ids,data,note:data.length?undefined:'Aucune fixture disponible pour le moment (source limitée ou quota).'})}catch(e){apiFail(res,e)}});
-app.get('/api/live',async(req,res)=>{try{const now=new Date();const from=new Date(now.getTime()-3*3600000).toISOString();const to=new Date(now.getTime()+2*3600000).toISOString();const ids=String(req.query.sports||'10,11,12,13').split(',').map(x=>x.trim()).filter(Boolean);const parts=await Promise.all(ids.map(async sportId=>{try{const data=await oddsPapi('/fixtures',{sportId,from,to,hasOdds:'true'});return Array.isArray(data)?data:[]}catch{return []}}));const data=parts.flat().filter(x=>{const s=String(x?.statusName||'').toLowerCase();const id=Number(x?.statusId);return x?.hasOdds&&(id>0&&id<90)&&!/pre-game|not started|scheduled|finished|ended|cancelled|postponed/i.test(s);}).sort((a,b)=>new Date(a.startTime||0)-new Date(b.startTime||0));res.json({ok:true,count:data.length,data})}catch(e){apiFail(res,e)}});
-app.get('/api/prematch',async(req,res)=>{try{const now=new Date();const from=now.toISOString();const to=new Date(now.getTime()+72*3600000).toISOString();const ids=String(req.query.sports||'10,11').split(',').map(x=>x.trim()).filter(Boolean);const parts=await Promise.all(ids.map(async sportId=>{try{const data=await oddsPapi('/fixtures',{sportId,from,to,hasOdds:'true'});return Array.isArray(data)?data:[]}catch{return []}}));const data=parts.flat().filter(x=>{const s=String(x?.statusName||'').toLowerCase();const id=Number(x?.statusId);return x?.hasOdds&&(id===0||/pre|not started|scheduled/i.test(s));}).sort((a,b)=>new Date(a.startTime||0)-new Date(b.startTime||0));res.json({ok:true,count:data.length,data})}catch(e){apiFail(res,e)}});
+app.get('/api/radar',async(req,res)=>{try{const now=new Date();const from=now.toISOString();const to=new Date(now.getTime()+48*3600000).toISOString();const ids=String(req.query.sports||'10,11').split(',').map(x=>x.trim()).filter(Boolean);const data=(await fetchFixturesForSports(ids,from,to)).sort((a,b)=>new Date(a.startTime||0)-new Date(b.startTime||0));res.json({ok:true,from,to,count:data.length,sports:ids,data,note:data.length?undefined:'Aucune fixture (quota OddsPapi ou aucune donnee).'})}catch(e){apiFail(res,e)}});
+app.get('/api/live',async(req,res)=>{try{const now=new Date();const from=new Date(now.getTime()-3*3600000).toISOString();const to=new Date(now.getTime()+2*3600000).toISOString();const ids=String(req.query.sports||'10,11').split(',').map(x=>x.trim()).filter(Boolean);const all=await fetchFixturesForSports(ids,from,to);const data=all.filter(x=>{const s=String(x?.statusName||'').toLowerCase();const id=Number(x?.statusId);return (id>0&&id<90)&&!/pre-game|not started|scheduled|finished|ended|cancelled|postponed/i.test(s);}).sort((a,b)=>new Date(a.startTime||0)-new Date(b.startTime||0));res.json({ok:true,count:data.length,data})}catch(e){apiFail(res,e)}});
+app.get('/api/prematch',async(req,res)=>{try{const now=new Date();const from=now.toISOString();const to=new Date(now.getTime()+48*3600000).toISOString();const ids=String(req.query.sports||'10,11').split(',').map(x=>x.trim()).filter(Boolean);const all=await fetchFixturesForSports(ids,from,to);const data=all.filter(x=>{const s=String(x?.statusName||'').toLowerCase();const id=Number(x?.statusId);return id===0||/pre|not started|scheduled/i.test(s);}).sort((a,b)=>new Date(a.startTime||0)-new Date(b.startTime||0));res.json({ok:true,count:data.length,data})}catch(e){apiFail(res,e)}});
 app.get('/api/odds',async(req,res)=>{try{const fixtureId=String(req.query.fixtureId||'').trim();if(!fixtureId)return res.status(400).json({ok:false,error:'fixtureId requis.'});const data=await oddsPapi('/odds',{fixtureId,bookmakers:req.query.bookmakers?String(req.query.bookmakers):'',oddsFormat:'decimal',verbosity:'3'});res.json({ok:true,data})}catch(e){apiFail(res,e)}});
 app.post('/api/arbitrage/stake-plan-constrained',auth,(req,res)=>{const body=req.body||{};const total=Number(body.totalStake??body.stake);const legs=Array.isArray((body.opportunity||body).legs)?(body.opportunity||body).legs:[];if(!Number.isFinite(total)||total<=0)return res.status(400).json({ok:false,error:'Mise totale invalide.'});const result=buildArbitrage(legs,total,Number(body.roundingStep||0.01));res.status(result.valid?200:422).json({ok:result.valid,plan:result})});
 app.post('/api/arbitrage/validate-opportunity',auth,(req,res)=>{const body=req.body||{};const result=buildArbitrage(Array.isArray(body.legs)?body.legs:[],Number(body.totalStake??body.stake??100),Number(body.roundingStep||0.01));res.status(result.valid?200:422).json({ok:result.valid,arbitrage:result})});
