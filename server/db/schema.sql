@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS deck_users (
 CREATE TABLE IF NOT EXISTS deck_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES deck_users(id) ON DELETE CASCADE,
-  token_hash TEXT NOT NULL UNIQUE,
+  token_hash TEXT UNIQUE NOT NULL,
   device_id TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -73,3 +73,41 @@ CREATE TABLE IF NOT EXISTS bookmaker_connection_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS bookmaker_events_user_idx ON bookmaker_connection_events(user_id, created_at DESC);
+
+-- Réglages bot / mise (money management)
+CREATE TABLE IF NOT EXISTS bot_settings (
+  user_id UUID PRIMARY KEY REFERENCES deck_users(id) ON DELETE CASCADE,
+  market_type TEXT NOT NULL DEFAULT 'les_deux',
+  match_days TEXT NOT NULL DEFAULT 'tous',
+  min_margin DECIMAL(5, 2) NOT NULL DEFAULT 2.00,
+  max_stake_per_bookmaker DECIMAL(12, 2) NOT NULL DEFAULT 50000.00,
+  total_stake DECIMAL(12, 2) NOT NULL DEFAULT 50000.00,
+  auto_stake_enabled BOOLEAN NOT NULL DEFAULT false,
+  autopilot_enabled BOOLEAN NOT NULL DEFAULT false,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Cache API cotes (OddsPapi / Sportmonks) — économie de quota
+CREATE TABLE IF NOT EXISTS odds_api_cache (
+  cache_key TEXT PRIMARY KEY,
+  data_json JSONB NOT NULL,
+  source TEXT NOT NULL DEFAULT 'oddspapi',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS odds_api_cache_expires_idx ON odds_api_cache(expires_at);
+
+-- Journal d'exécution / opérations (logs métier)
+CREATE TABLE IF NOT EXISTS execution_logs (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID REFERENCES deck_users(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL,
+  success BOOLEAN NOT NULL DEFAULT false,
+  summary TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS execution_logs_user_idx ON execution_logs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS execution_logs_created_idx ON execution_logs(created_at DESC);
